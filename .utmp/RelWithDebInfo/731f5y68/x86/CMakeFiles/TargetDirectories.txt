@@ -1,0 +1,5 @@
+C:/Unity/Projects/Flappy 2077/.utmp/RelWithDebInfo/731f5y68/x86/CMakeFiles/edit_cache.dir
+C:/Unity/Projects/Flappy 2077/.utmp/RelWithDebInfo/731f5y68/x86/CMakeFiles/rebuild_cache.dir
+C:/Unity/Projects/Flappy 2077/.utmp/RelWithDebInfo/731f5y68/x86/FramePacing/CMakeFiles/swappywrapper.dir
+C:/Unity/Projects/Flappy 2077/.utmp/RelWithDebInfo/731f5y68/x86/FramePacing/CMakeFiles/edit_cache.dir
+C:/Unity/Projects/Flappy 2077/.utmp/RelWithDebInfo/731f5y68/x86/FramePacing/CMakeFiles/rebuild_cache.dir
