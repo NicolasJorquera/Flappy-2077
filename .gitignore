@@ -80,3 +80,4 @@ crashlytics-build.properties
 # IDE
 .vscode/
 *.slnx
+.DS_Store
