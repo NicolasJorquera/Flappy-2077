@@ -76,3 +76,7 @@ crashlytics-build.properties
 /Signing keys/
 # Temporales de compilación Android
 /.utmp/
+
+# IDE
+.vscode/
+*.slnx
