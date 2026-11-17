@@ -15,8 +15,6 @@ public class CarScript : MonoBehaviour
     public LogicScript Logic;
     public bool carIsAlive;
     public AudioClip boostSound;
-    public GameObject interstitial;
-    private Interstitial interstitialScript;
 
     // Start is called before the first frame update
     void Start()
@@ -27,8 +25,6 @@ public class CarScript : MonoBehaviour
         carIsAlive = false;
 
         GetComponent<AudioSource>().playOnAwake = false;
-
-        interstitialScript = interstitial.GetComponent<Interstitial>();
 
     }
 
@@ -73,6 +69,5 @@ public class CarScript : MonoBehaviour
     {
         Logic.gameOver();
         carIsAlive = false;
-        interstitialScript.LoadInterstitialAd();
     }
 }
