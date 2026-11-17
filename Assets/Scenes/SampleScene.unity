@@ -1883,7 +1883,6 @@ MonoBehaviour:
   Logic: {fileID: 0}
   carIsAlive: 1
   boostSound: {fileID: 8300000, guid: 0755c556be434ff4b8b3c1f982341401, type: 3}
-  interstitial: {fileID: 1469858630}
 --- !u!61 &2069719303
 BoxCollider2D:
   m_ObjectHideFlags: 0
