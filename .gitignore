@@ -70,3 +70,13 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+# Claves de firma: nunca en el repo (viven en ~/keys)
+*.keystore
+*.jks
+/Signing keys/
+# Temporales de compilación Android
+/.utmp/
+
+# IDE
+.vscode/
+*.slnx

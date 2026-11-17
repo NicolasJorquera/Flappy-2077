@@ -37,6 +37,8 @@ public class LogicScript : MonoBehaviour
 
         GetComponent<AudioSource>().playOnAwake = false;
 
+        Interstitial.PrivacyButtonVisible = startScreen.activeSelf;
+
 
 
         // resolution fix
@@ -82,12 +84,16 @@ public class LogicScript : MonoBehaviour
 
     public void restartGame()
     {
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        // Pausa natural: si toca (cada varias partidas y con tiempo mínimo), el intersticial
+        // se muestra aquí, antes de cargar la siguiente partida; nunca durante el juego.
+        Interstitial.ShowAtBreakThen(() =>
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name));
     }
 
     public void startGame()
     {
         startScreen.SetActive(false);
+        Interstitial.PrivacyButtonVisible = false;
         rb2d.gravityScale = 1;
         buildingsSpawnScript.spawn = true;
         carScript.carIsAlive = true;
@@ -101,6 +107,7 @@ public class LogicScript : MonoBehaviour
             GetComponent<AudioSource>().volume = 0.2f;
             GetComponent<AudioSource>().Play();
             gameOverScreen.SetActive(true);
+            Interstitial.NotifyGameFinished();
         }
         
     }
