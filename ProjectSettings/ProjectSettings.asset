@@ -729,7 +729,7 @@ PlayerSettings:
   webEnableSubmoduleStrippingCompatibility: 0
   webProgressiveAssetLoading: 0
   scriptingDefineSymbols:
-    Android: 
+    Android: FLAPPY_PLAY_GAMES
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

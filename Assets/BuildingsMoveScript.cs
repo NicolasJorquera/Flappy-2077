@@ -1,30 +1,18 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// Desplaza un par de edificios hacia la izquierda. La velocidad efectiva es
+/// <see cref="moveSpeed"/> × <see cref="LogicScript.SpeedFactor"/>: sube con la dificultad
+/// y se frena hasta cero al chocar.
+/// </summary>
 public class BuildingsMoveScript : MonoBehaviour
 {
-
     public float moveSpeed = 5;
-    private float deadZone = -20;
+    private const float DeadZone = -24f;
 
-
-    // Start is called before the first frame update
-    void Start()
+    private void Update()
     {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        transform.position = transform.position + (Vector3.left * moveSpeed) * Time.deltaTime;
-
-        if (transform.position.x < deadZone)
-        {
-            Debug.Log("Buildings deleted");
-            Destroy(gameObject);
-        }
-
+        transform.position += Vector3.left * (moveSpeed * LogicScript.SpeedFactor * Time.deltaTime);
+        if (transform.position.x < DeadZone) Destroy(gameObject);
     }
 }
