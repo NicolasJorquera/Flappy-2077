@@ -25,6 +25,7 @@ public static class Leaderboard
         {
             case GameMode.Arcade: return ArcadeLeaderboardId;
             case GameMode.Daily: return DailyLeaderboardId;
+            case GameMode.Bosses: return ""; // práctica: sin ranking
             default: return LeaderboardId;
         }
     }

@@ -7,18 +7,22 @@ public enum GameMode
     Classic = 0, // endless puro (el original)
     Arcade = 1,  // chips, power-ups, combo y jefes
     Daily = 2,   // arcade con la misma ciudad para todos ese día
+    Bosses = 3,  // galería de jefes: boss rush desde el jefe elegido
 }
 
 public static class GameModes
 {
-    public static string Key(GameMode m) => m == GameMode.Arcade ? "mode_arcade" : m == GameMode.Daily ? "mode_daily" : "mode_classic";
+    public static string Key(GameMode m) =>
+        m == GameMode.Arcade ? "mode_arcade" : m == GameMode.Daily ? "mode_daily" : m == GameMode.Bosses ? "mode_bosses" : "mode_classic";
 
     /// <summary>Reglas de arcade (chips, power-ups, jefes) en Arcade y Diario.</summary>
     public static bool HasArcadeRules(GameMode m) => m != GameMode.Classic;
 
     /// <summary>Rangos por puntaje según el modo (el arcade suma mucho más rápido).</summary>
     public static int[] RankThresholds(GameMode m) =>
-        m == GameMode.Classic ? new[] { 0, 10, 25, 50, 100 } : new[] { 0, 40, 100, 200, 400 };
+        m == GameMode.Classic ? new[] { 0, 10, 25, 50, 100 }
+        : m == GameMode.Bosses ? new[] { 0, 25, 75, 150, 300 }
+        : new[] { 0, 40, 100, 200, 400 };
 
     /// <summary>Semilla del desafío diario: fecha UTC (aaaammdd), igual para todos.</summary>
     public static int DailySeed => int.Parse(DateTime.UtcNow.ToString("yyyyMMdd"));

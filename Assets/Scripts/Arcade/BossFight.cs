@@ -95,6 +95,9 @@ public class BossFight : MonoBehaviour
             }
             _homeX = 4.4f;
         }
+        // En pantallas angostas (4:3) el jefe se acerca para quedar entero en pantalla.
+        var cam = Camera.main;
+        if (cam != null) _homeX = Mathf.Min(_homeX, cam.orthographicSize * cam.aspect - (_kind == 1 ? 2.3f : 1.9f));
         Sfx.Play(_audio, _alarmClip, 0.9f);
         _logic.UI?.ShowBossWarning(Loc.Get(NameKey));
         Fx.Instance?.Shake(0.15f, 0.6f);
@@ -145,7 +148,7 @@ public class BossFight : MonoBehaviour
                 if (Mathf.Abs(transform.position.x - _homeX) < 0.01f)
                 {
                     _phase = Phase.Fighting;
-                    _attackTimer = 1.2f;
+                    _attackTimer = 2f; // margen para ubicarse antes del primer ataque
                     _logic.UI?.ShowBossBar(Loc.Get(NameKey));
                 }
                 break;

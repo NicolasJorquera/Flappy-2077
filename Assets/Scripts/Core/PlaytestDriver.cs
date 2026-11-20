@@ -80,6 +80,8 @@ public class PlaytestDriver : MonoBehaviour
             _played++;
             _best = Mathf.Max(_best, _logic.playerScore);
             var st = _logic.Stats;
+            var bossNow = _logic.Arcade != null ? _logic.Arcade.Boss : null;
+            if (bossNow != null) Debug.Log($"[Playtest] vida del jefe al terminar: {bossNow.HealthFraction:P0}");
             Debug.Log($"[Playtest] partida {_played} ({LogicScript.Mode}): {_logic.playerScore} puntos{(timeout ? " (tiempo límite)" : "")} · edificios {st.Gaps} · chips {st.Chips} · perfectos {st.Perfects} (racha {st.BestStreak}) · power-ups {st.PowerUps} · jefes {st.Bosses} · nivel {GameSettings.Level} xp {GameSettings.Xp}");
             Debug.Log($"[Playtest] ¿ofrece continuar? {_logic.CanContinue} · tienda disponible {NoAdsStore.Available} ({NoAdsStore.PriceText}) · ranking {Leaderboard.Available}");
             if (_played >= GamesToPlay)

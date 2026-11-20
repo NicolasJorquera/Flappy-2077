@@ -23,7 +23,8 @@ public class GameUI : MonoBehaviour
     private LogicScript _logic;
     private RectTransform _safe;
 
-    private GameObject _menu, _ready, _hud, _pause, _options, _over, _pilot;
+    private GameObject _menu, _ready, _hud, _pause, _options, _over, _pilot, _bossGallery;
+    private readonly List<Action> _galleryRefreshers = new List<Action>();
     private RectTransform _popups;
     private PixelText _multiplier, _readyMode, _overMode, _overMissions, _bossName, _bossWarning, _menuPilot;
     private readonly Dictionary<GameMode, PixelText> _modeBest = new Dictionary<GameMode, PixelText>();
@@ -89,6 +90,7 @@ public class GameUI : MonoBehaviour
         BuildOptions();
         BuildGameOver();
         BuildPilot();
+        BuildBossGallery();
 
         _popups = Node("Popups", transform);
         Stretch(_popups);
@@ -151,12 +153,17 @@ public class GameUI : MonoBehaviour
             });
             _modeBest[mode] = Label(r, "", 4, Amber, new Vector2(0.5f, 0f), new Vector2(x, 168), new Vector2(250, 36));
         }
-        MakeButton(r, "options", new Vector2(0.5f, 0f), new Vector2(-170, 76), new Vector2(300, 72), false, () =>
+        MakeButton(r, "options", new Vector2(0.5f, 0f), new Vector2(-270, 76), new Vector2(250, 72), false, () =>
         {
             Sfx.Click();
             OpenOptions(_menu);
         });
-        var pilot = MakeButton(r, "pilot", new Vector2(0.5f, 0f), new Vector2(170, 76), new Vector2(300, 72), false, () =>
+        MakeButton(r, "mode_bosses", new Vector2(0.5f, 0f), new Vector2(0, 76), new Vector2(250, 72), false, () =>
+        {
+            Sfx.Click();
+            OpenBossGallery();
+        });
+        var pilot = MakeButton(r, "pilot", new Vector2(0.5f, 0f), new Vector2(270, 76), new Vector2(250, 72), false, () =>
         {
             Sfx.Click();
             OpenPilot();
@@ -416,6 +423,7 @@ public class GameUI : MonoBehaviour
         _options.SetActive(false);
         _over.SetActive(false);
         _pilot.SetActive(false);
+        _bossGallery.SetActive(false);
     }
 
     public void ShowMenu()
@@ -438,7 +446,8 @@ public class GameUI : MonoBehaviour
         _score.text = score.ToString();
         var mode = LogicScript.Mode;
         _readyMode.text = mode == GameMode.Arcade ? Loc.Get("hint_arcade")
-            : mode == GameMode.Daily ? Loc.Format("hint_daily", GameModes.DailyLabel) : "";
+            : mode == GameMode.Daily ? Loc.Format("hint_daily", GameModes.DailyLabel)
+            : mode == GameMode.Bosses ? Loc.Get("hint_bosses") : "";
         Show(_ready);
         _hud.SetActive(true);
         _hud.transform.Find("Pause Button")?.gameObject.SetActive(false);
@@ -554,7 +563,7 @@ public class GameUI : MonoBehaviour
             CloseOptions();
             return true;
         }
-        if (_pilot.activeSelf)
+        if (_pilot.activeSelf || _bossGallery.activeSelf)
         {
             Sfx.Back();
             ShowMenu();
@@ -721,6 +730,73 @@ public class GameUI : MonoBehaviour
             Sfx.Back();
             ShowMenu();
         });
+    }
+
+    // ================================================================== galería de jefes
+
+    private static readonly string[] BossSprites = { "boss_drone", "boss_gunship", "boss_worm_head" };
+    private static readonly string[] BossNames = { "boss_drone", "boss_gunship", "boss_worm" };
+    private static readonly string[] BossAttacks = { "boss_drone_desc", "boss_gunship_desc", "boss_worm_desc" };
+    private static readonly int[] BossHealth = { 18, 30, 40 };
+
+    private void BuildBossGallery()
+    {
+        _bossGallery = MakeScreen("Boss Gallery").gameObject;
+        var r = (RectTransform)_bossGallery.transform;
+        Dimmer(r, 0.7f);
+        var panel = Panel(r, Vector2.zero, new Vector2(880, 640));
+        var title = LabelKey(panel, "bosses_title", 7, White, new Vector2(0.5f, 1f), new Vector2(0, -58), new Vector2(800, 60));
+        title.Glow = true;
+        LabelKey(panel, "bosses_sub", 3, Dim, new Vector2(0.5f, 1f), new Vector2(0, -104), new Vector2(800, 26));
+        var best = Label(panel, "", 4, Amber, new Vector2(0.5f, 0f), new Vector2(0, 118), new Vector2(600, 34));
+        _galleryRefreshers.Add(() => best.text = Loc.Get("best") + " " + GameSettings.BestFor(GameMode.Bosses));
+
+        for (int i = 0; i < 3; i++)
+        {
+            int kind = i;
+            float x = (i - 1) * 270f;
+            var card = Node("Card " + i, panel);
+            Place(card, new Vector2(0.5f, 1f), new Vector2(x, -300), new Vector2(255, 330));
+            var bg = card.gameObject.AddComponent<Image>();
+            bg.sprite = _panel;
+            bg.type = Image.Type.Sliced;
+            bg.pixelsPerUnitMultiplier = 1.8f;
+            bg.color = new Color(0.85f, 0.8f, 1f, 1f);
+
+            var img = Icon(card, "Pixel/" + BossSprites[i], new Vector2(0.5f, 1f), new Vector2(0, -78), new Vector2(200, 110));
+            var name = Label(card, "", 4, Pink, new Vector2(0.5f, 1f), new Vector2(0, -150), new Vector2(240, 30));
+            name.SetKey(BossNames[i]);
+            var hp = Label(card, "", 3, White, new Vector2(0.5f, 1f), new Vector2(0, -186), new Vector2(240, 24));
+            hp.SetKey("boss_hp", BossHealth[i]);
+            var attack = Label(card, "", 3, Cyan, new Vector2(0.5f, 1f), new Vector2(0, -214), new Vector2(240, 24));
+            attack.SetKey(BossAttacks[i]);
+            var status = Label(card, "", 3, Amber, new Vector2(0.5f, 1f), new Vector2(0, -242), new Vector2(240, 24));
+            MakeButton(card, "fight", new Vector2(0.5f, 0f), new Vector2(0, 44), new Vector2(200, 64), true, () =>
+            {
+                Sfx.Click();
+                _logic.PlayBossRush(kind);
+            });
+            _galleryRefreshers.Add(() =>
+            {
+                bool beaten = GameSettings.BossDefeated(kind);
+                status.text = Loc.Get(beaten ? "boss_defeated" : "boss_new");
+                status.color = beaten ? Cyan : Amber;
+                img.color = beaten ? Color.white : new Color(0.75f, 0.7f, 0.9f);
+            });
+        }
+
+        MakeButton(panel, "back", new Vector2(0.5f, 0f), new Vector2(0, 52), new Vector2(300, 68), false, () =>
+        {
+            Sfx.Back();
+            ShowMenu();
+        });
+    }
+
+    private void OpenBossGallery()
+    {
+        HideAll();
+        foreach (var refresh in _galleryRefreshers) refresh();
+        Show(_bossGallery);
     }
 
     private void OpenPilot()

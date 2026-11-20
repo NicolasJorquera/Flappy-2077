@@ -50,6 +50,18 @@ Se repiten en ciclo; cada vuelta +35 % de vida y +20 % de velocidad. Derrotarlo 
 25 × (vuelta) puntos × multiplicadores y suelta un power-up. Si te golpean: escudo o choque.
 El disparo usa el `shoot.wav` original del juego (estaba sin usar).
 
+## Galería de jefes (modo Jefes)
+
+Botón **JEFES** en el menú. Muestra los 3 jefes (imagen, nombre, vida, tipo de ataque y si ya lo
+derrotaste alguna vez). **Pelear** inicia un *boss rush* desde ese jefe: sin edificios, jefe tras
+jefe (3 s de pausa entre uno y otro para tomar el power-up que suelta), cada vuelta más duro.
+Récord propio (`score.best.bosses`), sin ranking mundial; "continuar" con anuncio disponible.
+El primer ataque llega 2 s después de que el jefe entra. Los jefes se ajustan al ancho de la
+pantalla (4:3 incluido).
+
+Prueba automática: el piloto deja al dron en el 56 % de vida antes de que lo golpeen
+(confirma que los disparos dañan; el piloto no esquiva).
+
 ## Misiones, niveles y colores (`Assets/Scripts/Progression/`)
 
 - **3 misiones activas** (se guardan en el dispositivo); al cumplir una se gana XP y aparece otra.

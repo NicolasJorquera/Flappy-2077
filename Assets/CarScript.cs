@@ -130,7 +130,7 @@ public class CarScript : MonoBehaviour
         var cam = Camera.main;
         if (cam == null) return menuPosition;
         float halfW = cam.orthographicSize * cam.aspect;
-        return new Vector2(Mathf.Min(menuPosition.x, halfW - 1.2f), menuPosition.y);
+        return new Vector2(Mathf.Min(menuPosition.x, halfW - 1.7f), menuPosition.y);
     }
 
     private bool FlapPressed()

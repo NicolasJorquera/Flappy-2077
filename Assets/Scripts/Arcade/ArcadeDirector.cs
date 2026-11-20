@@ -52,6 +52,9 @@ public class ArcadeDirector : MonoBehaviour
     private BossFight _boss;
     private int _bossIndex;
     private bool _waitingForBoss;
+    private bool _rush;          // galería: jefe tras jefe, sin edificios
+    private bool _rushStarted;
+    private float _rushDelay;
 
     public int Multiplier => 1 + Mathf.Min(2, _streak / 3);
     public int Streak => _streak;
@@ -329,6 +332,17 @@ public class ArcadeDirector : MonoBehaviour
 
     // ------------------------------------------------------------------ jefes
 
+    /// <summary>Galería de jefes: empieza el boss rush desde el jefe indicado.</summary>
+    public void StartBossRush(int startBoss)
+    {
+        _rush = true;
+        if (_rushStarted) return; // tras "continuar" sigue el jefe actual
+        _rushStarted = true;
+        _bossIndex = startBoss;
+        _waitingForBoss = true;
+        _rushDelay = 0.6f;
+    }
+
     private void UpdateBossSchedule()
     {
         if (_logic.State != GameState.Playing) return;
@@ -336,6 +350,14 @@ public class ArcadeDirector : MonoBehaviour
         {
             _waitingForBoss = true;
             _spawner.spawn = false;
+        }
+        if (_waitingForBoss && _rush)
+        {
+            _rushDelay -= Time.deltaTime;
+            if (_rushDelay > 0f) return;
+            _waitingForBoss = false;
+            _boss = BossFight.Begin(this, _logic, _bossIndex++);
+            return;
         }
         if (_waitingForBoss)
         {
@@ -350,6 +372,8 @@ public class ArcadeDirector : MonoBehaviour
     /// <summary>El jefe fue derrotado: suma puntos, suelta un power-up y vuelve la ciudad.</summary>
     public void OnBossDefeated(Vector3 pos, int basePoints)
     {
+        int kind = (_bossIndex - 1) % 3;
+        GameSettings.MarkBossDefeated(kind);
         _boss = null;
         _gapsSinceBoss = 0;
         _logic.Stats.Bosses++;
@@ -358,6 +382,13 @@ public class ArcadeDirector : MonoBehaviour
         drop.transform.position = pos;
         drop.AddComponent<BuildingsMoveScript>();
         AddPowerUp(drop.transform, Vector3.zero, RandomPower());
+        if (_rush)
+        {
+            // Siguiente jefe tras una pausa breve (para tomar el power-up).
+            _waitingForBoss = true;
+            _rushDelay = 3f;
+            return;
+        }
         _spawner.spawn = true;
         _spawner.Prime(0.3f);
     }

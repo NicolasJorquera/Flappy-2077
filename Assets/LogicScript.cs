@@ -37,6 +37,8 @@ public class LogicScript : MonoBehaviour
 
     /// <summary>Modo de la partida actual (sobrevive a la recarga de escena de "Otra vez").</summary>
     public static GameMode Mode { get; private set; } = GameMode.Classic;
+    /// <summary>Galería de jefes: con qué jefe empieza el boss rush (0 dron, 1 cañonera, 2 gusano).</summary>
+    public static int BossRushStart { get; private set; }
 
     /// <summary>Multiplicador por dificultad (1 → 1,4 según los edificios superados).</summary>
     public static float DifficultySpeed { get; private set; } = 1f;
@@ -149,6 +151,13 @@ public class LogicScript : MonoBehaviour
 
     public void Play() => Play(Mode);
 
+    /// <summary>Galería de jefes: boss rush desde el jefe elegido.</summary>
+    public void PlayBossRush(int startBoss)
+    {
+        BossRushStart = Mathf.Clamp(startBoss, 0, 2);
+        Play(GameMode.Bosses);
+    }
+
     private void EnterReady()
     {
         State = GameState.Ready;
@@ -165,7 +174,11 @@ public class LogicScript : MonoBehaviour
         if (State != GameState.Ready) return;
         State = GameState.Playing;
         _rb.gravityScale = 1;
-        if (Arcade == null || !Arcade.BossActive)
+        if (Mode == GameMode.Bosses)
+        {
+            Arcade.StartBossRush(BossRushStart); // sin edificios: jefe tras jefe
+        }
+        else if (Arcade == null || !Arcade.BossActive)
         {
             _spawner.spawn = true;
             _spawner.Prime(0.55f);

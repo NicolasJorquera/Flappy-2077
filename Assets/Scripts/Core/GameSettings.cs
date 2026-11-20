@@ -140,6 +140,7 @@ public static class GameSettings
         {
             case GameMode.Arcade: return "score.best.arcade";
             case GameMode.Daily: return "score.best.daily." + GameModes.DailySeed;
+            case GameMode.Bosses: return "score.best.bosses";
             default: return KeyBest;
         }
     }
@@ -169,6 +170,15 @@ public static class GameSettings
         int xp = Xp, need = 200;
         while (xp >= need) { xp -= need; need += 200; }
         return (xp, need);
+    }
+
+    /// <summary>Jefes derrotados alguna vez (para la galería).</summary>
+    public static bool BossDefeated(int kind) => PlayerPrefs.GetInt("boss.defeated." + kind, 0) == 1;
+
+    public static void MarkBossDefeated(int kind)
+    {
+        PlayerPrefs.SetInt("boss.defeated." + kind, 1);
+        PlayerPrefs.Save();
     }
 
     public static int SelectedSkin
