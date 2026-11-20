@@ -1,14 +1,16 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
+/// <summary>
+/// Genera obstáculos. Alterna entre las 10 combinaciones originales (prefabs) y pares
+/// armados en tiempo de ejecución con los edificios pixel-art nuevos
+/// (Assets/Resources/Pixel/bld_* abajo y top_* arriba), con hueco a altura aleatoria.
+/// El intervalo se acorta con la velocidad para que la distancia entre obstáculos se mantenga.
+/// </summary>
 public class BuildingsSpawnScript : MonoBehaviour
 {
-
     public float spawnRate = 2;
-    private float timer = 0;
     public bool spawn;
-    private int randIndex;
 
     public GameObject comb1;
     public GameObject comb2;
@@ -21,65 +23,135 @@ public class BuildingsSpawnScript : MonoBehaviour
     public GameObject comb9;
     public GameObject comb10;
 
+    [Range(0f, 1f)] public float newBuildingsChance = 0.5f;
+    public float gapSize = 2.5f;
+    public float gapMinY = -2.2f;
+    public float gapMaxY = 2.4f;
 
-    private GameObject[] combinatons;
+    private static readonly Color BuildingTint = new Color(0.82f, 0.82f, 0.82f, 1f);
 
+    private GameObject[] _combinations;
+    private Sprite[] _bottoms, _tops;
+    private Light2D _lightTemplate;
+    private Material _litMaterial;
+    private float _timer;
+    private int _lastCombination = -1;
+    private int _lastBottom = -1;
 
-    // Start is called before the first frame update
-    void Start()
+    private void Start()
     {
-        combinatons = new GameObject[10];
-        combinatons[0] = comb1;
-        combinatons[1] = comb2;
-        combinatons[2] = comb3;
-        combinatons[3] = comb4;
-        combinatons[4] = comb5;
-        combinatons[5] = comb6;
-        combinatons[6] = comb7;
-        combinatons[7] = comb8;
-        combinatons[8] = comb9;
-        combinatons[9] = comb10;
+        _combinations = new[] { comb1, comb2, comb3, comb4, comb5, comb6, comb7, comb8, comb9, comb10 };
+        _bottoms = new[]
+        {
+            Resources.Load<Sprite>("Pixel/bld_neon"),
+            Resources.Load<Sprite>("Pixel/bld_holo"),
+            Resources.Load<Sprite>("Pixel/bld_capsule"),
+        };
+        _tops = new[]
+        {
+            Resources.Load<Sprite>("Pixel/top_hanging"),
+            Resources.Load<Sprite>("Pixel/top_bridge"),
+        };
+        // Los pares nuevos copian la luz y el material de los originales: misma iluminación.
+        if (comb1 != null)
+        {
+            _lightTemplate = comb1.GetComponentInChildren<Light2D>(true);
+            var sr = comb1.GetComponentInChildren<SpriteRenderer>(true);
+            if (sr != null) _litMaterial = sr.sharedMaterial;
+        }
         spawn = false;
-
-        randIndex = 0;
-        
     }
 
-    // Update is called once per frame
-    void Update()
+    private void Update()
     {
-        if (spawn == true)
+        if (!spawn) return;
+        _timer += Time.deltaTime;
+        float interval = spawnRate / Mathf.Max(0.5f, LogicScript.DifficultySpeed);
+        if (_timer >= interval)
         {
-            if (timer < spawnRate)
-            {
-                timer = timer + Time.deltaTime;
-
-
-            }
-            else
-            {
-                spawnBuildings();
-                timer = 0;
-            }
+            _timer = 0f;
+            SpawnBuildings();
         }
-        
-
-
     }
 
+    /// <summary>Primer obstáculo antes de tiempo: que la partida no empiece con 2 s vacíos.</summary>
+    public void Prime(float fraction) => _timer = spawnRate * Mathf.Clamp01(fraction);
 
-    void spawnBuildings()
+    private void SpawnBuildings()
     {
-        Random.seed = System.DateTime.Now.Millisecond;
-
-        int auxRandIndex = Random.Range(0, combinatons.Length);
-        while (auxRandIndex == randIndex)
+        if (Random.value < newBuildingsChance && _bottoms[0] != null)
         {
-            auxRandIndex = Random.Range(0, combinatons.Length);
+            SpawnGenerated();
+            return;
         }
-        randIndex = auxRandIndex;
+        int index;
+        do index = Random.Range(0, _combinations.Length); while (index == _lastCombination && _combinations.Length > 1);
+        _lastCombination = index;
+        Instantiate(_combinations[index], transform.position, transform.rotation);
+    }
 
-        GameObject pickedCombination = combinatons[randIndex];
-        Instantiate(pickedCombination, transform.position, transform.rotation);
+    private void SpawnGenerated()
+    {
+        float gapY = Random.Range(gapMinY, gapMaxY);
+        var root = new GameObject("Generated pair");
+        root.transform.position = new Vector3(transform.position.x, 0f, 0f);
+        root.AddComponent<BuildingsMoveScript>();
+
+        int b;
+        do b = Random.Range(0, _bottoms.Length); while (b == _lastBottom && _bottoms.Length > 1);
+        _lastBottom = b;
+        var bottom = AddBuilding(root.transform, "Bottom Building", _bottoms[b]);
+        float bottomH = bottom.sprite.bounds.size.y;
+        bottom.transform.localPosition = new Vector3(0f, gapY - gapSize / 2f - bottomH / 2f, 0f);
+
+        var top = AddBuilding(root.transform, "Top Building", _tops[Random.Range(0, _tops.Length)]);
+        float topH = top.sprite.bounds.size.y;
+        top.transform.localPosition = new Vector3(Random.Range(-0.25f, 0.25f), gapY + gapSize / 2f + topH / 2f, 0f);
+
+        var trigger = new GameObject("Middle Trigger");
+        trigger.transform.SetParent(root.transform, false);
+        trigger.transform.localPosition = new Vector3(0f, gapY, 0f);
+        var box = trigger.AddComponent<BoxCollider2D>();
+        box.isTrigger = true;
+        box.size = new Vector2(0.5f, gapSize + 0.2f);
+        trigger.AddComponent<BuildingsMiddleScript>();
+    }
+
+    private SpriteRenderer AddBuilding(Transform parent, string name, Sprite sprite)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite = sprite;
+        sr.color = BuildingTint;
+        if (_litMaterial != null) sr.sharedMaterial = _litMaterial;
+        // Colisión con la silueta real del sprite (no castiga antenas ni bordes transparentes).
+        go.AddComponent<PolygonCollider2D>();
+
+        if (_lightTemplate != null)
+        {
+            var light = Instantiate(_lightTemplate, go.transform, false);
+            light.transform.localPosition = Vector3.zero;
+            light.transform.localRotation = Quaternion.identity;
+            FitLight(light, sprite.bounds.size);
+        }
+        return sr;
+    }
+
+    /// <summary>Escala la luz freeform del original para que cubra el nuevo edificio.</summary>
+    private static void FitLight(Light2D light, Vector2 target)
+    {
+        var path = light.shapePath;
+        if (path == null || path.Length == 0) return;
+        Vector2 min = path[0], max = path[0];
+        foreach (var p in path)
+        {
+            min = Vector2.Min(min, p);
+            max = Vector2.Max(max, p);
+        }
+        Vector2 size = max - min;
+        if (size.x <= 0f || size.y <= 0f) return;
+        light.transform.localScale = new Vector3(target.x * 1.15f / size.x, target.y * 1.05f / size.y, 1f);
+        light.transform.localPosition = -(Vector3)((min + max) * 0.5f * (Vector2)light.transform.localScale);
     }
 }

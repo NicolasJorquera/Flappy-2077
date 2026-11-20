@@ -1,0 +1,21 @@
+{
+  "name": "com.google.play.games",
+  "displayName": "Google Play Games",
+  "description": "The Google Play Games plugin for Unity allows you to access the Google Play Games API through Unity's social interface. Copia incluida en el proyecto (Apache-2.0): la dependencia se cambi\u00f3 a com.unity.external-dependency-manager porque el SDK de anuncios usa ese gestor.",
+  "version": "2.3.0",
+  "unity": "2018.4",
+  "author": {
+    "name": "Google LLC"
+  },
+  "dependencies": {
+    "com.unity.external-dependency-manager": "2.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/playgameservices/play-games-plugin-for-unity",
+    "revision": "2d6ccb6fb233d49470065753729106905f46fc93"
+  },
+  "publishConfig": {
+    "registry": "https://package.openupm.com"
+  }
+}

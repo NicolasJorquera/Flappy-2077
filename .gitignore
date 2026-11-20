@@ -81,3 +81,7 @@ crashlytics-build.properties
 .vscode/
 *.slnx
 .DS_Store
+
+# Salidas del build WebGL de previsualización y herramientas locales
+/[Dd]ata/
+Tools/art/.venv/

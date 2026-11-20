@@ -28,6 +28,11 @@ public class Interstitial : MonoBehaviour
     private const string TestAdUnitId = "ca-app-pub-3940256099942544/1033173712";
     private const double AdExpirySeconds = 55 * 60; // los intersticiales caducan a la hora
 
+    // Anuncio recompensado ("ver un anuncio para continuar"). Hay que crear el bloque en AdMob
+    // y pegar aquí su ID; mientras esté vacío, la versión de Play no ofrece continuar.
+    private const string RewardedUnitId = "";
+    private const string TestRewardedUnitId = "ca-app-pub-3940256099942544/5224354917";
+
     private static Interstitial _instance;
 
     private InterstitialAd _ad;
@@ -41,8 +46,22 @@ public class Interstitial : MonoBehaviour
     private float _lastAdTime = float.NegativeInfinity;
     private Action _afterAd;
 
-    /// <summary>La pantalla de inicio lo activa para mostrar el botón de privacidad si hace falta.</summary>
-    public static bool PrivacyButtonVisible { get; set; }
+    private RewardedAd _rewarded;
+    private DateTime _rewardedLoadedAt;
+    private bool _rewardedLoading;
+    private int _rewardedRetry;
+    private bool _rewardEarned;
+    private Action<bool> _afterRewarded;
+
+    /// <summary>
+    /// Plataformas con anuncios. En WebGL/escritorio (solo para previsualizar) el SDK no existe
+    /// y lanzaría excepciones, así que el gestor queda inactivo y el juego sigue sin anuncios.
+    /// </summary>
+#if UNITY_ANDROID || UNITY_IOS
+    private static readonly bool AdsSupported = true;
+#else
+    private static readonly bool AdsSupported = false;
+#endif
 
     private void Awake()
     {
@@ -54,7 +73,7 @@ public class Interstitial : MonoBehaviour
         _instance = this;
         DontDestroyOnLoad(gameObject);
 
-        RequestConsentThenInitialize();
+        if (AdsSupported) RequestConsentThenInitialize();
     }
 
     private void OnDestroy()
@@ -63,6 +82,7 @@ public class Interstitial : MonoBehaviour
         {
             _instance = null;
             _ad?.Destroy();
+            _rewarded?.Destroy();
         }
     }
 
@@ -81,10 +101,47 @@ public class Interstitial : MonoBehaviour
     /// </summary>
     public static void ShowAtBreakThen(Action continueGame)
     {
-        if (_instance == null || !_instance.TryShow(continueGame))
+        // Compra "Sin anuncios": nunca intersticiales.
+        if (GameSettings.AdsRemoved || _instance == null || !_instance.TryShow(continueGame))
         {
             continueGame();
         }
+    }
+
+    /// <summary>¿Se puede ofrecer "continuar viendo un anuncio" ahora mismo?</summary>
+    public static bool RewardedReady
+    {
+        get
+        {
+            // Sin SDK (WebGL/escritorio) las builds de desarrollo simulan el anuncio para probar el flujo.
+            if (!AdsSupported) return Debug.isDebugBuild;
+            var i = _instance;
+            return i != null && i._sdkReady && !i._showing && i._rewarded != null && i._rewarded.CanShowAd()
+                   && (DateTime.UtcNow - i._rewardedLoadedAt).TotalSeconds <= AdExpirySeconds;
+        }
+    }
+
+    /// <summary>
+    /// Muestra el anuncio recompensado. <paramref name="done"/> recibe true solo si el jugador
+    /// lo vio hasta ganar la recompensa (se llama una vez, al cerrar el anuncio).
+    /// </summary>
+    public static void ShowRewarded(Action<bool> done)
+    {
+        if (!AdsSupported)
+        {
+            done(Debug.isDebugBuild);
+            return;
+        }
+        var i = _instance;
+        if (i == null || !RewardedReady)
+        {
+            done(false);
+            return;
+        }
+        i._showing = true;
+        i._rewardEarned = false;
+        i._afterRewarded = done;
+        i._rewarded.Show(_ => OnMainThread(() => i._rewardEarned = true));
     }
 
     // ---------- Lógica interna ----------
@@ -157,17 +214,20 @@ public class Interstitial : MonoBehaviour
         if (_initStarted || !ConsentInformation.CanRequestAds()) return;
         _initStarted = true;
 
-        MobileAds.SetApplicationVolume(0.2f);
         MobileAds.Initialize(_ => OnMainThread(() =>
         {
+            // El SDK exige inicializar antes de fijar el volumen: llamarlo antes lanzaba
+            // IllegalStateException y cortaba la inicialización (nunca cargaban anuncios).
+            MobileAds.SetApplicationVolume(0.2f);
             _sdkReady = true;
-            LoadAd(); // precarga: se mostrará como pronto tras varias partidas
+            if (!GameSettings.AdsRemoved) LoadAd(); // precarga: se mostrará como pronto tras varias partidas
+            LoadRewarded();
         }));
     }
 
     private void LoadAd()
     {
-        if (!_sdkReady || _loading || _showing) return;
+        if (!_sdkReady || _loading || _showing || GameSettings.AdsRemoved) return;
         _loading = true;
 
         _ad?.Destroy();
@@ -198,6 +258,51 @@ public class Interstitial : MonoBehaviour
         }));
     }
 
+    private void LoadRewarded()
+    {
+        string unitId = Debug.isDebugBuild ? TestRewardedUnitId : RewardedUnitId;
+        if (!_sdkReady || _rewardedLoading || string.IsNullOrEmpty(unitId)) return;
+        _rewardedLoading = true;
+
+        _rewarded?.Destroy();
+        _rewarded = null;
+
+        RewardedAd.Load(unitId, new AdRequest(), (ad, error) => OnMainThread(() =>
+        {
+            _rewardedLoading = false;
+            if (error != null || ad == null)
+            {
+                Debug.LogWarning("Recompensado no cargado: " + error);
+                _rewardedRetry++;
+                Invoke(nameof(LoadRewarded), Mathf.Min(300f, 15f * Mathf.Pow(2, _rewardedRetry)));
+                return;
+            }
+            _rewardedRetry = 0;
+            _rewarded = ad;
+            _rewardedLoadedAt = DateTime.UtcNow;
+            ad.OnAdFullScreenContentClosed += () => OnMainThread(OnRewardedFinished);
+            ad.OnAdFullScreenContentFailed += err => OnMainThread(() =>
+            {
+                Debug.LogWarning("Recompensado no se pudo mostrar: " + err);
+                OnRewardedFinished();
+            });
+        }));
+    }
+
+    private void OnRewardedFinished()
+    {
+        _showing = false;
+        // Acaba de ver un anuncio: el próximo intersticial espera el ciclo completo.
+        _gamesSinceLastAd = 0;
+        _lastAdTime = Time.realtimeSinceStartup;
+        var done = _afterRewarded;
+        _afterRewarded = null;
+        bool earned = _rewardEarned;
+        _rewardEarned = false;
+        LoadRewarded();
+        done?.Invoke(earned);
+    }
+
     // Los callbacks del SDK pueden llegar desde otro hilo; la lógica de Unity va en el principal.
     private static readonly Queue<Action> MainThreadQueue = new Queue<Action>();
 
@@ -222,19 +327,29 @@ public class Interstitial : MonoBehaviour
 
     // ---------- Opciones de privacidad (requisito de UMP) ----------
 
-    private void OnGUI()
+    /// <summary>True si UMP exige ofrecer el botón de privacidad (se muestra en Opciones).</summary>
+    public static bool PrivacyOptionsRequired
     {
-        if (!PrivacyButtonVisible || _showing) return;
-        if (ConsentInformation.PrivacyOptionsRequirementStatus != PrivacyOptionsRequirementStatus.Required) return;
-
-        float w = Screen.width * 0.32f, h = Screen.height * 0.05f;
-        var style = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(h * 0.4f) };
-        if (GUI.Button(new Rect(Screen.width * 0.03f, Screen.height - h - Screen.height * 0.03f, w, h), "Privacidad", style))
+        get
         {
-            ConsentForm.ShowPrivacyOptionsForm(err =>
+            if (!AdsSupported || _instance == null) return false;
+            try
             {
-                if (err != null) Debug.LogWarning("UMP: " + err.Message);
-            });
+                return ConsentInformation.PrivacyOptionsRequirementStatus == PrivacyOptionsRequirementStatus.Required;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
+    }
+
+    public static void ShowPrivacyOptions()
+    {
+        if (!AdsSupported) return;
+        ConsentForm.ShowPrivacyOptionsForm(err =>
+        {
+            if (err != null) Debug.LogWarning("UMP: " + err.Message);
+        });
     }
 }
