@@ -16,6 +16,10 @@ on:
         type: choice
         options: [completed, inProgress, draft]
         default: completed
+      upload:
+        description: "Subir a Play (desmarcar para solo compilar y verificar el .aab)"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -27,6 +31,11 @@ concurrency:
 env:
   PACKAGE_NAME: com.gonisoma.Flappy2077
   AAB: build/Android/Android.aab
+  # GameCI aún no publica imagen Linux de 6000.6.9f1 (la versión del proyecto); se compila con
+  # el parche anterior de la misma rama 6000.6. Volver a "auto" cuando exista
+  # unityci/editor:ubuntu-6000.6.9f1-android-3 (o la versión que use el proyecto).
+  UNITY_VERSION: 6000.6.8f1
+  UNITY_IMAGE: unityci/editor:ubuntu-6000.6.8f1-android-3
 
 jobs:
   deploy:
@@ -89,7 +98,8 @@ jobs:
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           targetPlatform: Android
-          unityVersion: auto
+          unityVersion: ${{ env.UNITY_VERSION }}
+          customImage: ${{ env.UNITY_IMAGE }}
           versioning: Custom
           version: ${{ steps.version.outputs.name }}
           androidVersionCode: ${{ steps.version.outputs.code }}
@@ -138,6 +148,7 @@ jobs:
           retention-days: 90
 
       - name: Subir a Play
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.upload }}
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
