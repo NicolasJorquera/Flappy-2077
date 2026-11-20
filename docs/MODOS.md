@@ -52,9 +52,9 @@ El disparo usa el `shoot.wav` original del juego (estaba sin usar).
 
 ## Galería de jefes (práctica)
 
-Botón **JEFES** en el menú, **bloqueado hasta que llegues a pelear con un jefe en Arcade o
-Diario** (aviso: "Llega a un jefe en ARCADE para desbloquear"). Cada tarjeta se desbloquea al
-encontrar a ese jefe; antes se ve como silueta con "???".
+Botón **JEFES** siempre disponible en el menú. Adentro, cada jefe se desbloquea al aparecer
+por primera vez en Arcade o Diario; antes se ve como silueta con "???" y el aviso
+"Encuéntralo en Arcade".
 
 **Pelear** = práctica contra ese único jefe, sin edificios. Si lo vences aparece
 "¡JEFE DERROTADO!"; si te golpea, "¡CHOCASTE!". En ambos casos: otra vez o menú.

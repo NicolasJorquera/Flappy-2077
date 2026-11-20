@@ -163,12 +163,6 @@ public class GameUI : MonoBehaviour
         });
         _menuBosses = MakeButton(r, "mode_bosses", new Vector2(0.5f, 0f), new Vector2(0, 76), new Vector2(250, 72), false, () =>
         {
-            if (!GameSettings.AnyBossSeen)
-            {
-                Sfx.Back();
-                Toast(Loc.Get("bosses_locked"));
-                return;
-            }
             Sfx.Click();
             OpenBossGallery();
         });
@@ -448,10 +442,6 @@ public class GameUI : MonoBehaviour
                 : Loc.Get("best") + " " + best;
         }
         _menuPilot.text = Loc.Format("pilot_level", GameSettings.Level);
-        bool bossesOpen = GameSettings.AnyBossSeen;
-        _menuBosses.GetComponent<Image>().color = bossesOpen ? Color.white : new Color(0.55f, 0.5f, 0.7f, 0.85f);
-        var bossesLabel = _menuBosses.GetComponentInChildren<PixelText>();
-        bossesLabel.color = bossesOpen ? White : Dim;
         Show(_menu);
     }
 
