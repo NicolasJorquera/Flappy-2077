@@ -176,7 +176,7 @@ public class GameUI : MonoBehaviour
         _menuNoAds = MakeButton(r, "no_ads", new Vector2(0f, 1f), new Vector2(190, -62), new Vector2(320, 72), false, () =>
         {
             Sfx.Click();
-            NoAdsStore.Buy();
+            BuyNoAds();
         });
         _menuRanking = MakeIconButton(r, "Pixel/ic_trophy", new Vector2(1f, 1f), new Vector2(-70, -66), new Vector2(92, 92), () =>
         {
@@ -554,12 +554,23 @@ public class GameUI : MonoBehaviour
 
     private void RefreshStoreButtons()
     {
-        bool showBuy = NoAdsStore.Available && !NoAdsStore.AdsRemoved;
+        bool showBuy = NoAdsStore.Supported && !NoAdsStore.AdsRemoved;
         _menuNoAds.gameObject.SetActive(showBuy);
-        if (showBuy) _menuNoAds.GetComponentInChildren<PixelText>().SetKey("no_ads_price", NoAdsStore.PriceText);
+        if (showBuy)
+        {
+            var label = _menuNoAds.GetComponentInChildren<PixelText>();
+            if (NoAdsStore.Available) label.SetKey("no_ads_price", NoAdsStore.PriceText);
+            else label.SetKey("no_ads");
+        }
         _menuRanking.gameObject.SetActive(Leaderboard.Available);
         if (_overRanking != null) _overRanking.gameObject.SetActive(Leaderboard.Available);
         RefreshOptions();
+    }
+
+    /// <summary>Compra "Sin anuncios"; si Google aún no entrega el producto, lo avisa.</summary>
+    private void BuyNoAds()
+    {
+        if (!NoAdsStore.Buy() && !NoAdsStore.AdsRemoved) Toast(Loc.Get("store_unavailable"));
     }
 
     private void OnPurchaseFinished(bool success)
@@ -1039,18 +1050,19 @@ public class GameUI : MonoBehaviour
         var button = MakeTextButton(panel, "", new Vector2(0.5f, 1f), new Vector2(205, y), new Vector2(280, 56), () =>
         {
             Sfx.Click();
-            NoAdsStore.Buy();
+            BuyNoAds();
         });
         var text = button.GetComponentInChildren<PixelText>();
         _optionRefreshers.Add(() =>
         {
             bool owned = NoAdsStore.AdsRemoved;
             // Sin tienda (navegador) y sin compra: la fila no se muestra.
-            bool visible = owned || NoAdsStore.Available;
+            bool visible = owned || NoAdsStore.Supported;
             button.gameObject.SetActive(visible);
             label.gameObject.SetActive(visible);
             button.interactable = !owned;
-            text.text = owned ? Loc.Get("no_ads_owned") : NoAdsStore.PriceText;
+            text.text = owned ? Loc.Get("no_ads_owned")
+                : NoAdsStore.Available ? NoAdsStore.PriceText : Loc.Get("buy");
             text.color = owned ? Cyan : White;
             button.GetComponent<Image>().sprite = owned ? _buttonAlt : _button;
         });

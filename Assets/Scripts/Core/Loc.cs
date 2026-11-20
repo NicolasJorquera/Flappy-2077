@@ -47,6 +47,8 @@ public static class Loc
         { "no_ads_price", new[] { "NO ADS {0}", "SIN ANUNCIOS {0}" } },
         { "no_ads_owned", new[] { "ADS REMOVED", "SIN ANUNCIOS: LISTO" } },
         { "thanks", new[] { "THANK YOU!", "¡GRACIAS!" } },
+        { "store_unavailable", new[] { "STORE NOT AVAILABLE YET", "TIENDA NO DISPONIBLE AÚN" } },
+        { "buy", new[] { "BUY", "COMPRAR" } },
         { "purchase_failed", new[] { "PURCHASE NOT COMPLETED", "COMPRA NO COMPLETADA" } },
         // opciones
         { "music", new[] { "MUSIC", "MÚSICA" } },

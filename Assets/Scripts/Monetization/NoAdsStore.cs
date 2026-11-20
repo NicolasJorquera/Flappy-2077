@@ -13,7 +13,9 @@ using UnityEngine.Purchasing;
 /// - Al iniciar consulta las compras del jugador: restaura la compra en un teléfono nuevo y la
 ///   revoca si Google la reembolsó. Mientras tanto usa la copia local (funciona sin conexión).
 /// - Quita los intersticiales. El anuncio recompensado sigue disponible porque es opcional.
-/// - En WebGL no hay tienda: <see cref="Available"/> es false y el botón no se muestra.
+/// - En WebGL no hay tienda (<see cref="Supported"/> false) y el botón no se muestra. En el teléfono
+///   el botón se ve siempre: si Google aún no entrega el producto (sin conexión, APK instalado a mano
+///   o producto no creado), <see cref="Buy"/> devuelve false, reintenta la consulta y la UI avisa.
 /// </summary>
 public class NoAdsStore : MonoBehaviour
 {
@@ -30,6 +32,13 @@ public class NoAdsStore : MonoBehaviour
 
     public static bool AdsRemoved => GameSettings.AdsRemoved;
     public static bool Available => Instance != null && Instance._product != null;
+
+    /// <summary>La plataforma tiene tienda (Android/iOS). Decide si el botón de compra se muestra.</summary>
+#if UNITY_ANDROID || UNITY_IOS || UNITY_EDITOR
+    public static bool Supported => true;
+#else
+    public static bool Supported => false;
+#endif
     public static string PriceText => Instance?._price ?? "";
 
 #if UNITY_ANDROID || UNITY_IOS || UNITY_EDITOR
@@ -63,13 +72,25 @@ public class NoAdsStore : MonoBehaviour
 #endif
     }
 
-    public static void Buy()
+    /// <summary>
+    /// Abre la compra de Google. Devuelve false si la tienda todavía no entregó el producto; en ese
+    /// caso vuelve a consultarlo para que el siguiente toque funcione.
+    /// </summary>
+    public static bool Buy()
     {
-        if (Instance == null || AdsRemoved || Instance._buying) return;
+        if (Instance == null || AdsRemoved) return false;
+        if (Instance._buying) return true;
 #if UNITY_ANDROID || UNITY_IOS || UNITY_EDITOR
-        if (Instance._product == null) return;
+        if (Instance._product == null)
+        {
+            Instance.Retry();
+            return false;
+        }
         Instance._buying = true;
         Instance._controller.PurchaseProduct(Instance._product);
+        return true;
+#else
+        return false;
 #endif
     }
 
@@ -81,7 +102,7 @@ public class NoAdsStore : MonoBehaviour
             _store = UnityIAPServices.GetDefaultStore();
             _controller = new PurchasingController(_store);
             _controller.OnStoreConnected += OnStoreConnected;
-            _controller.OnStoreDisconnected += (store, d) => Debug.LogWarning("IAP: tienda desconectada: " + d.message);
+            _controller.OnStoreDisconnected += (store, d) => { _connected = false; Debug.LogWarning("IAP: tienda desconectada: " + d.message); };
             _controller.OnProductsFetched += OnProductsFetched;
             _controller.OnProductsFetchFailed += (store, f) => Debug.LogWarning("IAP: no se cargó el producto: " + f.FailureReason);
             _controller.OnPurchasesFetched += OnPurchasesFetched;
@@ -98,8 +119,18 @@ public class NoAdsStore : MonoBehaviour
         }
     }
 
+    private bool _connected;
+
+    private void Retry()
+    {
+        if (_controller == null) { Connect(); return; }
+        if (_connected) OnStoreConnected(_store);
+        else Connect();
+    }
+
     private void OnStoreConnected(string store)
     {
+        _connected = true;
         _controller.FetchProducts(new List<ProductDefinition> { new ProductDefinition(ProductId, ProductType.NonConsumable) }, store);
     }
 
