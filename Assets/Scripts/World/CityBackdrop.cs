@@ -25,6 +25,7 @@ public class CityBackdrop : MonoBehaviour
     private readonly List<Car> _traffic = new List<Car>();
     private readonly List<SpriteRenderer> _twinkles = new List<SpriteRenderer>();
     private Sprite[] _trafficSprites;
+    private Sprite _blimp, _drone;
     private Material _unlit;
     private float _nextCar;
     private Camera _cam;
@@ -72,6 +73,9 @@ public class CityBackdrop : MonoBehaviour
             Resources.Load<Sprite>("Pixel/traffic_b"),
             Resources.Load<Sprite>("Pixel/traffic_c"),
         };
+
+        _blimp = Resources.Load<Sprite>("Pixel/bg_blimp");
+        _drone = Resources.Load<Sprite>("Pixel/bg_drone");
 
         var square = Fx.Square;
         for (int i = 0; i < 16; i++)
@@ -181,15 +185,24 @@ public class CityBackdrop : MonoBehaviour
         float limit = _cam.orthographicSize * _cam.aspect + 1.5f;
         var r = new GameObject("Traffic").AddComponent<SpriteRenderer>();
         r.transform.SetParent(transform, false);
-        r.sprite = _trafficSprites[Random.Range(0, _trafficSprites.Length)];
+        float roll = Random.value;
+        bool blimp = roll < 0.07f && _blimp != null;
+        bool drone = !blimp && roll < 0.25f && _drone != null;
+        r.sprite = blimp ? _blimp : drone ? _drone : _trafficSprites[Random.Range(0, _trafficSprites.Length)];
         r.sharedMaterial = _unlit;
-        r.sortingOrder = near ? -65 : -85;
+        r.sortingOrder = blimp ? -88 : near ? -65 : -85;
         r.flipX = !toRight;
         float scale = near ? 1f : 0.6f;
         r.color = near ? Color.white : new Color(0.7f, 0.7f, 0.85f, 0.85f);
         r.transform.localScale = Vector3.one * scale;
         r.transform.position = new Vector3(toRight ? -limit : limit, Random.Range(near ? -1.5f : -0.5f, 3.6f), 0f);
-        float speed = Random.Range(near ? 2.5f : 1f, near ? 4.5f : 2.2f);
+        float speed = blimp ? Random.Range(0.35f, 0.6f) : drone ? Random.Range(1.5f, 3f) : Random.Range(near ? 2.5f : 1f, near ? 4.5f : 2.2f);
+        if (blimp)
+        {
+            r.color = new Color(0.75f, 0.7f, 0.95f, 0.9f);
+            r.transform.localScale = Vector3.one * 1.2f;
+            r.transform.position = new Vector3(r.transform.position.x, Random.Range(2f, 3.8f), 0f);
+        }
         _traffic.Add(new Car { T = r.transform, Speed = toRight ? speed : -speed });
     }
 }

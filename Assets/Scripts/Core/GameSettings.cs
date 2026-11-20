@@ -110,15 +110,79 @@ public static class GameSettings
         set { EnsureLoaded(); if (_noAds == value) return; _noAds = value; Save(KeyNoAds, value ? 1 : 0); }
     }
 
-    /// <summary>Guarda el puntaje si es récord. Devuelve true si lo es.</summary>
-    public static bool SubmitScore(int score)
+    /// <summary>Guarda el puntaje del clásico si es récord. Devuelve true si lo es.</summary>
+    public static bool SubmitScore(int score) => SubmitScore(GameMode.Classic, score);
+
+    /// <summary>
+    /// Récord por modo. El clásico usa la clave original (conserva récords de versiones
+    /// anteriores); el diario guarda el récord del día (se reinicia cada día UTC).
+    /// </summary>
+    public static int BestFor(GameMode mode)
     {
         EnsureLoaded();
-        if (score <= _best) return false;
-        _best = score;
-        PlayerPrefs.SetInt(KeyBest, _best);
+        if (mode == GameMode.Classic) return _best;
+        return PlayerPrefs.GetInt(BestKey(mode), 0);
+    }
+
+    public static bool SubmitScore(GameMode mode, int score)
+    {
+        EnsureLoaded();
+        if (score <= BestFor(mode)) return false;
+        if (mode == GameMode.Classic) _best = score;
+        PlayerPrefs.SetInt(BestKey(mode), score);
         PlayerPrefs.Save();
         return true;
+    }
+
+    private static string BestKey(GameMode mode)
+    {
+        switch (mode)
+        {
+            case GameMode.Arcade: return "score.best.arcade";
+            case GameMode.Daily: return "score.best.daily." + GameModes.DailySeed;
+            default: return KeyBest;
+        }
+    }
+
+    // ------------------------------------------------------------------ progreso del piloto
+
+    /// <summary>Experiencia total acumulada por misiones.</summary>
+    public static int Xp
+    {
+        get => PlayerPrefs.GetInt("pilot.xp", 0);
+        set { PlayerPrefs.SetInt("pilot.xp", Mathf.Max(0, value)); PlayerPrefs.Save(); }
+    }
+
+    /// <summary>Nivel de piloto: cada nivel cuesta 200 XP más que el anterior (200, 400, 600…).</summary>
+    public static int Level => LevelForXp(Xp);
+
+    public static int LevelForXp(int xp)
+    {
+        int level = 1, need = 200;
+        while (xp >= need) { xp -= need; level++; need += 200; }
+        return level;
+    }
+
+    /// <summary>XP dentro del nivel actual y XP necesaria para el siguiente.</summary>
+    public static (int current, int needed) LevelProgress()
+    {
+        int xp = Xp, need = 200;
+        while (xp >= need) { xp -= need; need += 200; }
+        return (xp, need);
+    }
+
+    public static int SelectedSkin
+    {
+        get => PlayerPrefs.GetInt("car.skin", 0);
+        set { PlayerPrefs.SetInt("car.skin", value); PlayerPrefs.Save(); Changed?.Invoke(); }
+    }
+
+    public static string GetString(string key, string fallback = "") => PlayerPrefs.GetString(key, fallback);
+
+    public static void SetString(string key, string value)
+    {
+        PlayerPrefs.SetString(key, value);
+        PlayerPrefs.Save();
     }
 
     /// <summary>Cuenta una partida terminada (una sola vez por partida, aunque haya continuado).</summary>

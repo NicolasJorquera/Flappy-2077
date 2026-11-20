@@ -48,6 +48,9 @@ public static class DebugAutopilot
                 targetY = b.center.y;
             }
         }
+        // Durante un jefe: apuntar a su altura (dispara solo).
+        var boss = car.Logic != null && car.Logic.Arcade != null ? car.Logic.Arcade.Boss : null;
+        if (boss != null) targetY = Mathf.Clamp(boss.transform.position.y, -2.5f, 3f) + 0.3f;
         var rb = car.myRigidbody;
         // Un impulso eleva ~v²/2g ≈ 1,3 unidades: impulsar cayendo y bajo el centro evita pasarse.
         if (car.transform.position.y < targetY - 0.75f && rb.linearVelocity.y <= 0f)
