@@ -172,6 +172,17 @@ public static class GameSettings
         return (xp, need);
     }
 
+    /// <summary>Jefes que ya apareciste a pelear en Arcade/Diario: desbloquean su práctica.</summary>
+    public static bool BossSeen(int kind) => PlayerPrefs.GetInt("boss.seen." + kind, 0) == 1;
+    public static bool AnyBossSeen => BossSeen(0) || BossSeen(1) || BossSeen(2);
+
+    public static void MarkBossSeen(int kind)
+    {
+        if (BossSeen(kind)) return;
+        PlayerPrefs.SetInt("boss.seen." + kind, 1);
+        PlayerPrefs.Save();
+    }
+
     /// <summary>Jefes derrotados alguna vez (para la galería).</summary>
     public static bool BossDefeated(int kind) => PlayerPrefs.GetInt("boss.defeated." + kind, 0) == 1;
 

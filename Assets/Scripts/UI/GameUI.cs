@@ -25,6 +25,9 @@ public class GameUI : MonoBehaviour
 
     private GameObject _menu, _ready, _hud, _pause, _options, _over, _pilot, _bossGallery;
     private readonly List<Action> _galleryRefreshers = new List<Action>();
+    private Button _menuBosses;
+    private PixelText _overTitle;
+    private GameObject _overPanel;
     private RectTransform _popups;
     private PixelText _multiplier, _readyMode, _overMode, _overMissions, _bossName, _bossWarning, _menuPilot;
     private readonly Dictionary<GameMode, PixelText> _modeBest = new Dictionary<GameMode, PixelText>();
@@ -158,8 +161,14 @@ public class GameUI : MonoBehaviour
             Sfx.Click();
             OpenOptions(_menu);
         });
-        MakeButton(r, "mode_bosses", new Vector2(0.5f, 0f), new Vector2(0, 76), new Vector2(250, 72), false, () =>
+        _menuBosses = MakeButton(r, "mode_bosses", new Vector2(0.5f, 0f), new Vector2(0, 76), new Vector2(250, 72), false, () =>
         {
+            if (!GameSettings.AnyBossSeen)
+            {
+                Sfx.Back();
+                Toast(Loc.Get("bosses_locked"));
+                return;
+            }
             Sfx.Click();
             OpenBossGallery();
         });
@@ -372,6 +381,7 @@ public class GameUI : MonoBehaviour
         var title = LabelKey(r, "game_over", 11, Pink, new Vector2(0.5f, 1f), new Vector2(0, -64), new Vector2(900, 100));
         title.Glow = true;
         title.GlowColor = new Color(0.35f, 0.0f, 0.48f, 0.9f);
+        _overTitle = title;
 
         _overMode = Label(r, "", 3, Cyan, new Vector2(0.5f, 1f), new Vector2(0, -118), new Vector2(700, 26));
         _overMissions = Label(r, "", 4, Amber, new Vector2(0.5f, 0.5f), new Vector2(0, -118), new Vector2(1000, 34));
@@ -379,6 +389,7 @@ public class GameUI : MonoBehaviour
         _newBest.gameObject.AddComponent<Blink>();
 
         var panel = Panel(r, new Vector2(0, 40), new Vector2(640, 260));
+        _overPanel = panel.gameObject;
         LabelKey(panel, "score", 4, Dim, new Vector2(0f, 1f), new Vector2(190, -44), new Vector2(300, 36));
         _overScore = Label(panel, "0", 10, White, new Vector2(0f, 1f), new Vector2(190, -108), new Vector2(320, 86));
         LabelKey(panel, "best", 4, Dim, new Vector2(0f, 1f), new Vector2(190, -168), new Vector2(300, 36));
@@ -437,6 +448,10 @@ public class GameUI : MonoBehaviour
                 : Loc.Get("best") + " " + best;
         }
         _menuPilot.text = Loc.Format("pilot_level", GameSettings.Level);
+        bool bossesOpen = GameSettings.AnyBossSeen;
+        _menuBosses.GetComponent<Image>().color = bossesOpen ? Color.white : new Color(0.55f, 0.5f, 0.7f, 0.85f);
+        var bossesLabel = _menuBosses.GetComponentInChildren<PixelText>();
+        bossesLabel.color = bossesOpen ? White : Dim;
         Show(_menu);
     }
 
@@ -447,7 +462,7 @@ public class GameUI : MonoBehaviour
         var mode = LogicScript.Mode;
         _readyMode.text = mode == GameMode.Arcade ? Loc.Get("hint_arcade")
             : mode == GameMode.Daily ? Loc.Format("hint_daily", GameModes.DailyLabel)
-            : mode == GameMode.Bosses ? Loc.Get("hint_bosses") : "";
+            : mode == GameMode.Bosses ? PracticeLabel() : "";
         Show(_ready);
         _hud.SetActive(true);
         _hud.transform.Find("Pause Button")?.gameObject.SetActive(false);
@@ -489,7 +504,13 @@ public class GameUI : MonoBehaviour
         _overRanking.gameObject.SetActive(Leaderboard.Available);
         _newBest.gameObject.SetActive(newBest);
         _overBest.text = best.ToString();
-        _overMode.text = mode == GameMode.Daily ? Loc.Format("hint_daily", GameModes.DailyLabel) : Loc.Get(GameModes.Key(mode));
+        _overMode.text = mode == GameMode.Daily ? Loc.Format("hint_daily", GameModes.DailyLabel)
+            : mode == GameMode.Bosses ? PracticeLabel() : Loc.Get(GameModes.Key(mode));
+        // Práctica de jefes: solo el resultado (sin puntaje, récord ni rango).
+        bool practice = mode == GameMode.Bosses;
+        _overPanel.SetActive(!practice);
+        _overTitle.SetKey(practice && _logic.PracticeWon ? "boss_victory" : "game_over");
+        _overTitle.color = practice && _logic.PracticeWon ? Cyan : Pink;
         var thresholds = GameModes.RankThresholds(mode);
         int rank = LogicScript.RankFor(score, mode);
         SetMedal(_overMedal, rank);
@@ -748,8 +769,6 @@ public class GameUI : MonoBehaviour
         var title = LabelKey(panel, "bosses_title", 7, White, new Vector2(0.5f, 1f), new Vector2(0, -58), new Vector2(800, 60));
         title.Glow = true;
         LabelKey(panel, "bosses_sub", 3, Dim, new Vector2(0.5f, 1f), new Vector2(0, -104), new Vector2(800, 26));
-        var best = Label(panel, "", 4, Amber, new Vector2(0.5f, 0f), new Vector2(0, 118), new Vector2(600, 34));
-        _galleryRefreshers.Add(() => best.text = Loc.Get("best") + " " + GameSettings.BestFor(GameMode.Bosses));
 
         for (int i = 0; i < 3; i++)
         {
@@ -771,17 +790,23 @@ public class GameUI : MonoBehaviour
             var attack = Label(card, "", 3, Cyan, new Vector2(0.5f, 1f), new Vector2(0, -214), new Vector2(240, 24));
             attack.SetKey(BossAttacks[i]);
             var status = Label(card, "", 3, Amber, new Vector2(0.5f, 1f), new Vector2(0, -242), new Vector2(240, 24));
-            MakeButton(card, "fight", new Vector2(0.5f, 0f), new Vector2(0, 44), new Vector2(200, 64), true, () =>
+            var fight = MakeButton(card, "fight", new Vector2(0.5f, 0f), new Vector2(0, 44), new Vector2(200, 64), true, () =>
             {
                 Sfx.Click();
-                _logic.PlayBossRush(kind);
+                _logic.PlayBossPractice(kind);
             });
             _galleryRefreshers.Add(() =>
             {
+                bool seen = GameSettings.BossSeen(kind);
                 bool beaten = GameSettings.BossDefeated(kind);
-                status.text = Loc.Get(beaten ? "boss_defeated" : "boss_new");
-                status.color = beaten ? Cyan : Amber;
-                img.color = beaten ? Color.white : new Color(0.75f, 0.7f, 0.9f);
+                // Sin encontrarlo aún: silueta y "???".
+                img.color = !seen ? new Color(0.03f, 0f, 0.1f, 0.9f) : beaten ? Color.white : new Color(0.8f, 0.75f, 0.95f);
+                if (seen) name.SetKey(BossNames[kind]); else name.text = "???";
+                hp.gameObject.SetActive(seen);
+                attack.gameObject.SetActive(seen);
+                status.text = Loc.Get(!seen ? "boss_locked" : beaten ? "boss_defeated" : "boss_new");
+                status.color = !seen ? Dim : beaten ? Cyan : Amber;
+                fight.gameObject.SetActive(seen);
             });
         }
 
@@ -791,6 +816,9 @@ public class GameUI : MonoBehaviour
             ShowMenu();
         });
     }
+
+    private string PracticeLabel() =>
+        Loc.Format("hint_practice", Loc.Get(BossNames[Mathf.Clamp(LogicScript.PracticeBoss, 0, 2)]));
 
     private void OpenBossGallery()
     {

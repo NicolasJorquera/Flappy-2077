@@ -7,7 +7,7 @@ public enum GameMode
     Classic = 0, // endless puro (el original)
     Arcade = 1,  // chips, power-ups, combo y jefes
     Daily = 2,   // arcade con la misma ciudad para todos ese día
-    Bosses = 3,  // galería de jefes: boss rush desde el jefe elegido
+    Bosses = 3,  // práctica: un jefe ya encontrado en Arcade/Diario
 }
 
 public static class GameModes

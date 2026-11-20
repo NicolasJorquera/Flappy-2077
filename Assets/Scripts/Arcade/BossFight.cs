@@ -59,6 +59,8 @@ public class BossFight : MonoBehaviour
         b._logic = logic;
         b._kind = index % 3;
         b._cycle = index / 3;
+        // Encontrarlo en Arcade/Diario desbloquea su práctica en la galería.
+        if (LogicScript.Mode != GameMode.Bosses) GameSettings.MarkBossSeen(b._kind);
         b.Build();
         return b;
     }

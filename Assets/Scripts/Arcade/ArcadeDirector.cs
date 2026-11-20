@@ -52,9 +52,10 @@ public class ArcadeDirector : MonoBehaviour
     private BossFight _boss;
     private int _bossIndex;
     private bool _waitingForBoss;
-    private bool _rush;          // galería: jefe tras jefe, sin edificios
-    private bool _rushStarted;
-    private float _rushDelay;
+    private bool _practice;      // galería: un solo jefe, sin edificios
+    private bool _practiceStarted;
+    private float _practiceDelay;
+    private float _victoryTimer = -1f;
 
     public int Multiplier => 1 + Mathf.Min(2, _streak / 3);
     public int Streak => _streak;
@@ -332,15 +333,15 @@ public class ArcadeDirector : MonoBehaviour
 
     // ------------------------------------------------------------------ jefes
 
-    /// <summary>Galería de jefes: empieza el boss rush desde el jefe indicado.</summary>
-    public void StartBossRush(int startBoss)
+    /// <summary>Galería de jefes: practicar contra un solo jefe.</summary>
+    public void StartPractice(int kind)
     {
-        _rush = true;
-        if (_rushStarted) return; // tras "continuar" sigue el jefe actual
-        _rushStarted = true;
-        _bossIndex = startBoss;
+        _practice = true;
+        if (_practiceStarted) return;
+        _practiceStarted = true;
+        _bossIndex = kind;
         _waitingForBoss = true;
-        _rushDelay = 0.6f;
+        _practiceDelay = 0.6f;
     }
 
     private void UpdateBossSchedule()
@@ -351,10 +352,16 @@ public class ArcadeDirector : MonoBehaviour
             _waitingForBoss = true;
             _spawner.spawn = false;
         }
-        if (_waitingForBoss && _rush)
+        if (_victoryTimer >= 0f)
         {
-            _rushDelay -= Time.deltaTime;
-            if (_rushDelay > 0f) return;
+            _victoryTimer -= Time.deltaTime;
+            if (_victoryTimer < 0f) _logic.WinPractice();
+            return;
+        }
+        if (_waitingForBoss && _practice)
+        {
+            _practiceDelay -= Time.deltaTime;
+            if (_practiceDelay > 0f) return;
             _waitingForBoss = false;
             _boss = BossFight.Begin(this, _logic, _bossIndex++);
             return;
@@ -376,19 +383,18 @@ public class ArcadeDirector : MonoBehaviour
         GameSettings.MarkBossDefeated(kind);
         _boss = null;
         _gapsSinceBoss = 0;
+        if (_practice)
+        {
+            // Práctica: sin puntos ni power-up; tras la explosión aparece la victoria.
+            _victoryTimer = 2f;
+            return;
+        }
         _logic.Stats.Bosses++;
         _logic.AddPoints(Scaled(basePoints), pos, popup: true);
         var drop = new GameObject("Boss drop");
         drop.transform.position = pos;
         drop.AddComponent<BuildingsMoveScript>();
         AddPowerUp(drop.transform, Vector3.zero, RandomPower());
-        if (_rush)
-        {
-            // Siguiente jefe tras una pausa breve (para tomar el power-up).
-            _waitingForBoss = true;
-            _rushDelay = 3f;
-            return;
-        }
         _spawner.spawn = true;
         _spawner.Prime(0.3f);
     }

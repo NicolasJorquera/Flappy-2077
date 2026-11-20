@@ -50,17 +50,19 @@ Se repiten en ciclo; cada vuelta +35 % de vida y +20 % de velocidad. Derrotarlo 
 25 × (vuelta) puntos × multiplicadores y suelta un power-up. Si te golpean: escudo o choque.
 El disparo usa el `shoot.wav` original del juego (estaba sin usar).
 
-## Galería de jefes (modo Jefes)
+## Galería de jefes (práctica)
 
-Botón **JEFES** en el menú. Muestra los 3 jefes (imagen, nombre, vida, tipo de ataque y si ya lo
-derrotaste alguna vez). **Pelear** inicia un *boss rush* desde ese jefe: sin edificios, jefe tras
-jefe (3 s de pausa entre uno y otro para tomar el power-up que suelta), cada vuelta más duro.
-Récord propio (`score.best.bosses`), sin ranking mundial; "continuar" con anuncio disponible.
-El primer ataque llega 2 s después de que el jefe entra. Los jefes se ajustan al ancho de la
-pantalla (4:3 incluido).
+Botón **JEFES** en el menú, **bloqueado hasta que llegues a pelear con un jefe en Arcade o
+Diario** (aviso: "Llega a un jefe en ARCADE para desbloquear"). Cada tarjeta se desbloquea al
+encontrar a ese jefe; antes se ve como silueta con "???".
 
-Prueba automática: el piloto deja al dron en el 56 % de vida antes de que lo golpeen
-(confirma que los disparos dañan; el piloto no esquiva).
+**Pelear** = práctica contra ese único jefe, sin edificios. Si lo vences aparece
+"¡JEFE DERROTADO!"; si te golpea, "¡CHOCASTE!". En ambos casos: otra vez o menú.
+La práctica **no** da récord, ranking, misiones ni "continuar" con anuncio. La tarjeta muestra
+si ese jefe ya fue derrotado alguna vez (en cualquier modo).
+
+Prueba automática: en Arcade el piloto llegó al jefe, quedó marcado como visto y lo derrotó
+(tras continuar); la práctica no movió la XP.
 
 ## Misiones, niveles y colores (`Assets/Scripts/Progression/`)
 

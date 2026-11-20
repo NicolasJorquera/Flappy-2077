@@ -37,8 +37,10 @@ public class LogicScript : MonoBehaviour
 
     /// <summary>Modo de la partida actual (sobrevive a la recarga de escena de "Otra vez").</summary>
     public static GameMode Mode { get; private set; } = GameMode.Classic;
-    /// <summary>Galería de jefes: con qué jefe empieza el boss rush (0 dron, 1 cañonera, 2 gusano).</summary>
-    public static int BossRushStart { get; private set; }
+    /// <summary>Práctica de jefes: cuál se practica (0 dron, 1 cañonera, 2 gusano).</summary>
+    public static int PracticeBoss { get; private set; }
+    /// <summary>La práctica terminó con el jefe derrotado.</summary>
+    public bool PracticeWon { get; private set; }
 
     /// <summary>Multiplicador por dificultad (1 → 1,4 según los edificios superados).</summary>
     public static float DifficultySpeed { get; private set; } = 1f;
@@ -71,7 +73,7 @@ public class LogicScript : MonoBehaviour
 
     /// <summary>¿Se ofrece "continuar viendo un anuncio"? Una vez por partida, no en el diario.</summary>
     public bool CanContinue => State == GameState.Over && !_continued && playerScore > 0
-                               && Mode != GameMode.Daily && Interstitial.RewardedReady;
+                               && Mode != GameMode.Daily && Mode != GameMode.Bosses && Interstitial.RewardedReady;
 
     private void Awake()
     {
@@ -151,10 +153,11 @@ public class LogicScript : MonoBehaviour
 
     public void Play() => Play(Mode);
 
-    /// <summary>Galería de jefes: boss rush desde el jefe elegido.</summary>
-    public void PlayBossRush(int startBoss)
+    /// <summary>Galería: practicar contra un jefe ya encontrado.</summary>
+    public void PlayBossPractice(int kind)
     {
-        BossRushStart = Mathf.Clamp(startBoss, 0, 2);
+        if (!GameSettings.BossSeen(kind)) return;
+        PracticeBoss = Mathf.Clamp(kind, 0, 2);
         Play(GameMode.Bosses);
     }
 
@@ -176,7 +179,7 @@ public class LogicScript : MonoBehaviour
         _rb.gravityScale = 1;
         if (Mode == GameMode.Bosses)
         {
-            Arcade.StartBossRush(BossRushStart); // sin edificios: jefe tras jefe
+            Arcade.StartPractice(PracticeBoss); // sin edificios: solo el jefe elegido
         }
         else if (Arcade == null || !Arcade.BossActive)
         {
@@ -252,14 +255,32 @@ public class LogicScript : MonoBehaviour
         _spawner.spawn = false;
         Arcade?.OnCrash();
         Sfx.Play(_audio, gameOverSound, 0.35f);
-        IsNewBest = GameSettings.SubmitScore(Mode, playerScore) && playerScore > 0;
-        Leaderboard.Submit(Mode, playerScore);
-        Stats.Score = playerScore;
-        Stats.Continued = _continued;
-        var done = Missions.Report(Stats);
+        var done = new List<Mission>();
+        IsNewBest = false;
+        if (Mode != GameMode.Bosses) // la práctica no cuenta para récords, rankings ni misiones
+        {
+            IsNewBest = GameSettings.SubmitScore(Mode, playerScore) && playerScore > 0;
+            Leaderboard.Submit(Mode, playerScore);
+            Stats.Score = playerScore;
+            Stats.Continued = _continued;
+            done = Missions.Report(Stats);
+        }
         pickMusic.Instance?.SetMuffled(true);
         _ui.Flash(new Color(1f, 0.35f, 0.75f, 0.55f));
         StartCoroutine(ShowGameOverAfter(0.85f, done));
+    }
+
+    /// <summary>Práctica: el jefe fue derrotado. El auto queda flotando y aparece la victoria.</summary>
+    public void WinPractice()
+    {
+        if (State != GameState.Playing) return;
+        State = GameState.Over;
+        PracticeWon = true;
+        carScript.carIsAlive = false;
+        _rb.gravityScale = 0f;
+        _rb.linearVelocity = Vector2.zero;
+        Sfx.NewBest();
+        StartCoroutine(ShowGameOverAfter(0.4f, new List<Mission>()));
     }
 
     private IEnumerator ShowGameOverAfter(float seconds, List<Mission> done)
