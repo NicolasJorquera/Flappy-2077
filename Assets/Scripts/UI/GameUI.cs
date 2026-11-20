@@ -259,8 +259,11 @@ public class GameUI : MonoBehaviour
         ResetHud();
     }
 
+    private int _shownMultiplier = 1;
+
     private void ResetHud()
     {
+        _shownMultiplier = 1;
         _multiplier.text = "";
         _puGroup.SetActive(false);
         _shieldIcon.gameObject.SetActive(false);
@@ -591,7 +594,11 @@ public class GameUI : MonoBehaviour
     {
         if (!_hud.activeSelf) return;
         int m = d.Multiplier * (d.TimedPower == PowerUp.Double ? 2 : 1);
-        _multiplier.text = m > 1 ? "x" + m : "";
+        if (m != _shownMultiplier)
+        {
+            _shownMultiplier = m; // armar el texto solo al cambiar: sin basura de memoria por frame
+            _multiplier.text = m > 1 ? "x" + m : "";
+        }
         bool timed = d.TimedPower != PowerUp.None;
         _puGroup.SetActive(timed);
         if (timed)

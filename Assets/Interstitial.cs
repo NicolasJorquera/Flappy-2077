@@ -225,9 +225,17 @@ public class Interstitial : MonoBehaviour
         }));
     }
 
+    /// <summary>Cargar un anuncio levanta el WebView del SDK y puede trabar: nunca en pleno vuelo.</summary>
+    private static bool PlayerIsFlying => LogicScript.Instance != null && LogicScript.Instance.State == GameState.Playing;
+
     private void LoadAd()
     {
         if (!_sdkReady || _loading || _showing || GameSettings.AdsRemoved) return;
+        if (PlayerIsFlying)
+        {
+            Invoke(nameof(LoadAd), 5f);
+            return;
+        }
         _loading = true;
 
         _ad?.Destroy();
@@ -262,6 +270,11 @@ public class Interstitial : MonoBehaviour
     {
         string unitId = Debug.isDebugBuild ? TestRewardedUnitId : RewardedUnitId;
         if (!_sdkReady || _rewardedLoading || string.IsNullOrEmpty(unitId)) return;
+        if (PlayerIsFlying)
+        {
+            Invoke(nameof(LoadRewarded), 5f);
+            return;
+        }
         _rewardedLoading = true;
 
         _rewarded?.Destroy();
