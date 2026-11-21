@@ -9,6 +9,9 @@ public class PlaytestDriver : MonoBehaviour
 {
     public static int GamesToPlay = 2;
     public static float MaxSecondsPerGame = 45f;
+    /// <summary>Modo de cada partida (se repite el último si hay más partidas).</summary>
+    public static GameMode[] Modes = { GameMode.Classic, GameMode.Arcade };
+    public static float MaxSecondsArcade = 85f;
 
     private int _played;
     private float _gameTime;
@@ -20,6 +23,15 @@ public class PlaytestDriver : MonoBehaviour
 
     private void Awake()
     {
+        // PLAYTEST_MODES=Arcade,Arcade permite elegir los modos desde la línea de comandos.
+        string env = System.Environment.GetEnvironmentVariable("PLAYTEST_MODES");
+        if (!string.IsNullOrEmpty(env))
+        {
+            var parts = env.Split(',');
+            Modes = new GameMode[parts.Length];
+            for (int i = 0; i < parts.Length; i++) Modes[i] = (GameMode)System.Enum.Parse(typeof(GameMode), parts[i].Trim());
+            GamesToPlay = parts.Length;
+        }
         DontDestroyOnLoad(gameObject);
         DebugAutopilot.SetActive(true);
     }
@@ -40,7 +52,7 @@ public class PlaytestDriver : MonoBehaviour
             _lastState = state;
         }
 
-        if (state == GameState.Menu) _logic.Play();
+        if (state == GameState.Menu) _logic.Play(Modes[Mathf.Min(_played, Modes.Length - 1)]);
 
         _gameTime += Time.deltaTime;
         _logTimer -= Time.deltaTime;
@@ -48,7 +60,7 @@ public class PlaytestDriver : MonoBehaviour
         {
             _logTimer = 1f;
             var rb = _logic.car.GetComponent<Rigidbody2D>();
-            Debug.Log($"[Playtest] t={_gameTime:0.0} y={_logic.car.transform.position.y:0.00} vy={rb.linearVelocity.y:0.00} puntos={_logic.playerScore} vel={LogicScript.SpeedFactor:0.00} dt={Time.deltaTime:0.000} gs={rb.gravityScale} tipo={rb.bodyType} sim={rb.simulated} lin={rb.linearDamping} misma={rb == _logic.carScript.myRigidbody} escala={_logic.car.transform.localScale} hijos={_logic.car.transform.childCount} padre={_logic.car.transform.parent?.name}");
+            Debug.Log($"[Playtest] t={_gameTime:0.0} x={_logic.car.transform.position.x:0.00} y={_logic.car.transform.position.y:0.00} boss={(_logic.Arcade != null && _logic.Arcade.BossActive)} escudo={(_logic.Arcade != null && _logic.Arcade.HasShield)} vy={rb.linearVelocity.y:0.00} puntos={_logic.playerScore} vel={LogicScript.SpeedFactor:0.00} dt={Time.deltaTime:0.000} gs={rb.gravityScale} tipo={rb.bodyType} sim={rb.simulated} lin={rb.linearDamping} misma={rb == _logic.carScript.myRigidbody} escala={_logic.car.transform.localScale} hijos={_logic.car.transform.childCount} padre={_logic.car.transform.parent?.name}");
         }
 
         // Primera vez que choca con puntos: prueba "continuar" (en WebGL/escritorio el anuncio se simula).
@@ -61,12 +73,16 @@ public class PlaytestDriver : MonoBehaviour
             return;
         }
 
-        bool timeout = state == GameState.Playing && _gameTime > MaxSecondsPerGame;
+        float limit = LogicScript.Mode == GameMode.Classic ? MaxSecondsPerGame : MaxSecondsArcade;
+        bool timeout = state == GameState.Playing && _gameTime > limit;
         if (state == GameState.Over || timeout)
         {
             _played++;
             _best = Mathf.Max(_best, _logic.playerScore);
-            Debug.Log($"[Playtest] partida {_played}: {_logic.playerScore} puntos{(timeout ? " (tiempo límite)" : "")}");
+            var st = _logic.Stats;
+            var bossNow = _logic.Arcade != null ? _logic.Arcade.Boss : null;
+            if (bossNow != null) Debug.Log($"[Playtest] vida del jefe al terminar: {bossNow.HealthFraction:P0}");
+            Debug.Log($"[Playtest] partida {_played} ({LogicScript.Mode}): {_logic.playerScore} puntos{(timeout ? " (tiempo límite)" : "")} · edificios {st.Gaps} · chips {st.Chips} · perfectos {st.Perfects} (racha {st.BestStreak}) · power-ups {st.PowerUps} · jefes {st.Bosses} · nivel {GameSettings.Level} xp {GameSettings.Xp}");
             Debug.Log($"[Playtest] ¿ofrece continuar? {_logic.CanContinue} · tienda disponible {NoAdsStore.Available} ({NoAdsStore.PriceText}) · ranking {Leaderboard.Available}");
             if (_played >= GamesToPlay)
             {
@@ -75,7 +91,9 @@ public class PlaytestDriver : MonoBehaviour
                 enabled = false;
                 return;
             }
-            _logic.restartGame();
+            // Siguiente partida: si cambia el modo, por el menú; si no, "otra vez".
+            if (Modes[Mathf.Min(_played, Modes.Length - 1)] != LogicScript.Mode) _logic.GoToMenu();
+            else _logic.restartGame();
             _logic = null;
             _lastState = (GameState)(-1);
         }

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -6,8 +7,9 @@ using UnityEngine.UI;
 public enum GameState { Menu, Ready, Playing, Paused, Over }
 
 /// <summary>
-/// Gestor de la partida: estados, puntaje, récord, dificultad, pausa y fin de partida.
-/// Arma en tiempo de ejecución el fondo de ciudad, los efectos y la interfaz (<see cref="GameUI"/>).
+/// Gestor de la partida: modo, estados, puntaje, récord, dificultad, pausa y fin de partida.
+/// Arma en tiempo de ejecución el fondo de ciudad, los efectos, la interfaz (<see cref="GameUI"/>)
+/// y, en Arcade/Diario, el director de chips, power-ups y jefes (<see cref="ArcadeDirector"/>).
 /// El nombre de la clase y sus campos se mantienen para no romper las referencias de la escena.
 /// </summary>
 public class LogicScript : MonoBehaviour
@@ -28,19 +30,28 @@ public class LogicScript : MonoBehaviour
 
     public const float BaseWorldSpeed = 5f;
 
-    // Rangos por puntaje (medallas). Índice 0 = sin medalla.
-    public static readonly int[] RankThresholds = { 0, 10, 25, 50, 100 };
     public static readonly string[] RankKeys = { "rank_none", "rank_bronze", "rank_silver", "rank_gold", "rank_neon" };
 
     /// <summary>Al recargar la escena desde "Otra vez" se salta el menú.</summary>
     private static bool _skipMenuOnLoad;
 
-    /// <summary>Multiplicador por dificultad (1 → 1,4 según el puntaje).</summary>
+    /// <summary>Modo de la partida actual (sobrevive a la recarga de escena de "Otra vez").</summary>
+    public static GameMode Mode { get; private set; } = GameMode.Classic;
+    /// <summary>Práctica de jefes: cuál se practica (0 dron, 1 cañonera, 2 gusano).</summary>
+    public static int PracticeBoss { get; private set; }
+    /// <summary>La práctica terminó con el jefe derrotado.</summary>
+    public bool PracticeWon { get; private set; }
+
+    /// <summary>Multiplicador por dificultad (1 → 1,4 según los edificios superados).</summary>
     public static float DifficultySpeed { get; private set; } = 1f;
-    /// <summary>Multiplicador efectivo para todo lo que se desplaza: dificultad × frenado al chocar.</summary>
+    /// <summary>Multiplicador de power-ups (ciudad lenta). Lo fija el director de arcade.</summary>
+    public static float PowerSpeedFactor = 1f;
+    /// <summary>Multiplicador efectivo para todo lo que se desplaza.</summary>
     public static float SpeedFactor { get; private set; } = 1f;
-    /// <summary>Velocidad del mundo en unidades/s (fondo, estela).</summary>
+    /// <summary>Velocidad del mundo en unidades/s (fondo, estela, generación de obstáculos).</summary>
     public static float WorldSpeed => BaseWorldSpeed * SpeedFactor;
+
+    public static LogicScript Instance { get; private set; }
 
     public GameState State { get; private set; }
     /// <summary>Frame en que se reanudó la pausa: esa misma pulsación no debe impulsar el auto.</summary>
@@ -48,6 +59,9 @@ public class LogicScript : MonoBehaviour
     /// <summary>True si la escena que carga ahora va directo a "listo" (salta el menú).</summary>
     public static bool WillSkipMenu => _skipMenuOnLoad;
     public bool IsNewBest { get; private set; }
+    public RunStats Stats { get; private set; } = new RunStats();
+    public ArcadeDirector Arcade { get; private set; }
+    public GameUI UI => _ui;
 
     private Rigidbody2D _rb;
     private BuildingsSpawnScript _spawner;
@@ -57,13 +71,21 @@ public class LogicScript : MonoBehaviour
     private bool _runActive;   // hay una partida empezada que aún no se contó como terminada
     private bool _continued;   // ya usó su "continuar" en esta partida
 
-    /// <summary>¿Se ofrece "continuar viendo un anuncio"? Una vez por partida y con anuncio listo.</summary>
-    public bool CanContinue => State == GameState.Over && !_continued && playerScore > 0 && Interstitial.RewardedReady;
+    /// <summary>¿Se ofrece "continuar viendo un anuncio"? Una vez por partida, no en el diario.</summary>
+    public bool CanContinue => State == GameState.Over && !_continued && playerScore > 0
+                               && Mode != GameMode.Daily && Mode != GameMode.Bosses && Interstitial.RewardedReady;
 
     private void Awake()
     {
+        Instance = this;
         DifficultySpeed = 1f;
         SpeedFactor = 1f;
+        PowerSpeedFactor = 1f;
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
     }
 
     private void Start()
@@ -91,6 +113,7 @@ public class LogicScript : MonoBehaviour
         CityBackdrop.Create(cam);
         Fx.Create(cam);
         _ui = GameUI.Create(this);
+        carScript.ApplySkin(CarSkins.Selected);
 
         pickMusic.Instance?.SetMuffled(false);
         if (_skipMenuOnLoad)
@@ -110,7 +133,7 @@ public class LogicScript : MonoBehaviour
         // Frenado del mundo tras chocar (tiempo real para que no dependa de timeScale).
         float target = State == GameState.Over ? 0f : 1f;
         _brake = Mathf.MoveTowards(_brake, target, Time.deltaTime * 2.2f);
-        SpeedFactor = DifficultySpeed * _brake;
+        SpeedFactor = DifficultySpeed * _brake * PowerSpeedFactor;
         DebugAutopilot.Update();
 
         if (Input.GetKeyDown(KeyCode.Escape)) OnBackPressed();
@@ -120,48 +143,88 @@ public class LogicScript : MonoBehaviour
 
     // ------------------------------------------------------------------ flujo
 
-    /// <summary>Menú → pantalla "toca para volar".</summary>
-    public void Play()
+    /// <summary>Menú → pantalla "toca para volar" en el modo indicado.</summary>
+    public void Play(GameMode mode)
     {
         if (State != GameState.Menu) return;
+        Mode = mode;
         EnterReady();
+    }
+
+    public void Play() => Play(Mode);
+
+    /// <summary>Galería: practicar contra un jefe ya encontrado.</summary>
+    public void PlayBossPractice(int kind)
+    {
+        if (!GameSettings.BossSeen(kind)) return;
+        PracticeBoss = Mathf.Clamp(kind, 0, 2);
+        Play(GameMode.Bosses);
     }
 
     private void EnterReady()
     {
         State = GameState.Ready;
         playerScore = 0;
+        Stats = new RunStats { Mode = Mode };
+        GameRandom.Reset(Mode == GameMode.Daily ? GameModes.DailySeed : (int?)null);
+        if (GameModes.HasArcadeRules(Mode) && Arcade == null) Arcade = ArcadeDirector.Create(this, _spawner);
         _ui.ShowReady(playerScore);
     }
 
-    /// <summary>Primer toque en "listo": empieza la partida.</summary>
+    /// <summary>Primer toque en "listo": empieza (o retoma, tras continuar) la partida.</summary>
     public void BeginRun()
     {
         if (State != GameState.Ready) return;
         State = GameState.Playing;
         _rb.gravityScale = 1;
-        _spawner.spawn = true;
-        _spawner.Prime(0.55f);
+        if (Mode == GameMode.Bosses)
+        {
+            Arcade.StartPractice(PracticeBoss); // sin edificios: solo el jefe elegido
+        }
+        else if (Arcade == null || !Arcade.BossActive)
+        {
+            _spawner.spawn = true;
+            _spawner.Prime(0.55f);
+        }
         carScript.carIsAlive = true;
         _runActive = true;
         _ui.ShowHud();
     }
 
-    public void addScore(int scoreToAdd)
+    /// <summary>El auto cruzó el hueco de un par de edificios.</summary>
+    public void OnGapPassed(Collider2D gap)
     {
         if (!carScript.carIsAlive) return;
-        playerScore += scoreToAdd;
-        DifficultySpeed = 1f + Mathf.Min(0.4f, playerScore * 0.006f);
+        Stats.Gaps++;
+        DifficultySpeed = 1f + Mathf.Min(0.4f, Stats.Gaps * 0.006f);
+        int points = 1;
+        if (Arcade != null) points = Arcade.OnGapPassed(gap);
+        AddPoints(points, car.transform.position, popup: points > 1);
+    }
 
+    /// <summary>Compatibilidad con la escena original: suma puntos sin multiplicadores.</summary>
+    public void addScore(int scoreToAdd) => AddPoints(scoreToAdd, car.transform.position, popup: false);
+
+    /// <summary>Suma puntos (ya multiplicados) con sonido, chispas y, si se pide, un "+N" flotante.</summary>
+    public void AddPoints(int points, Vector3 worldPos, bool popup)
+    {
+        if (!carScript.carIsAlive || points <= 0) return;
+        int before = playerScore;
+        playerScore += points;
+        Stats.Score = playerScore;
+
+        // Hitos: se celebra al cruzar cada decena/centena/millar (los chips saltan varios puntos).
+        bool k = playerScore / 1000 > before / 1000, c = playerScore / 100 > before / 100, d = playerScore / 10 > before / 10;
         Color spark = Fx.Cyan;
         int sparks = 5;
-        if (playerScore % 1000 == 0) { Sfx.Play(_audio, thousandPoints, 1f); spark = Fx.Amber; sparks = 30; }
-        else if (playerScore % 100 == 0) { Sfx.Play(_audio, hundredPoints, 1f); spark = Fx.Amber; sparks = 22; }
-        else if (playerScore % 10 == 0) { Sfx.Play(_audio, tenPoints, 0.8f); spark = Fx.Pink; sparks = 12; }
-        else Sfx.Play(_audio, onePoint, 0.8f);
+        if (k) { Sfx.Play(_audio, thousandPoints, 1f); spark = Fx.Amber; sparks = 30; }
+        else if (c) { Sfx.Play(_audio, hundredPoints, 1f); spark = Fx.Amber; sparks = 22; }
+        else if (d) { Sfx.Play(_audio, tenPoints, 0.8f); spark = Fx.Pink; sparks = 12; }
+        else if (!popup) Sfx.Play(_audio, onePoint, 0.8f);
 
-        Fx.Instance?.ScoreSparks(car.transform.position + Vector3.right * 0.4f, spark, sparks);
-        _ui.SetScore(playerScore, playerScore % 10 == 0);
+        Fx.Instance?.ScoreSparks(worldPos + Vector3.right * 0.4f, spark, sparks);
+        _ui.SetScore(playerScore, d);
+        if (popup) _ui.PopPoints(worldPos, "+" + points, spark);
     }
 
     public void Pause()
@@ -190,19 +253,41 @@ public class LogicScript : MonoBehaviour
         Time.timeScale = 1f;
         State = GameState.Over;
         _spawner.spawn = false;
+        Arcade?.OnCrash();
         Sfx.Play(_audio, gameOverSound, 0.35f);
-        IsNewBest = GameSettings.SubmitScore(playerScore) && playerScore > 0;
-        Leaderboard.Submit(playerScore);
+        var done = new List<Mission>();
+        IsNewBest = false;
+        if (Mode != GameMode.Bosses) // la práctica no cuenta para récords, rankings ni misiones
+        {
+            IsNewBest = GameSettings.SubmitScore(Mode, playerScore) && playerScore > 0;
+            Leaderboard.Submit(Mode, playerScore);
+            Stats.Score = playerScore;
+            Stats.Continued = _continued;
+            done = Missions.Report(Stats);
+        }
         pickMusic.Instance?.SetMuffled(true);
         _ui.Flash(new Color(1f, 0.35f, 0.75f, 0.55f));
-        StartCoroutine(ShowGameOverAfter(0.85f));
+        StartCoroutine(ShowGameOverAfter(0.85f, done));
     }
 
-    private IEnumerator ShowGameOverAfter(float seconds)
+    /// <summary>Práctica: el jefe fue derrotado. El auto queda flotando y aparece la victoria.</summary>
+    public void WinPractice()
+    {
+        if (State != GameState.Playing) return;
+        State = GameState.Over;
+        PracticeWon = true;
+        carScript.carIsAlive = false;
+        _rb.gravityScale = 0f;
+        _rb.linearVelocity = Vector2.zero;
+        Sfx.NewBest();
+        StartCoroutine(ShowGameOverAfter(0.4f, new List<Mission>()));
+    }
+
+    private IEnumerator ShowGameOverAfter(float seconds, List<Mission> done)
     {
         _ui.HideHud();
         yield return new WaitForSecondsRealtime(seconds);
-        _ui.ShowGameOver(playerScore, GameSettings.BestScore, IsNewBest);
+        _ui.ShowGameOver(playerScore, GameSettings.BestFor(Mode), IsNewBest, done);
     }
 
     /// <summary>"Continuar": muestra el anuncio recompensado y, si se completa, revive el auto.</summary>
@@ -220,10 +305,11 @@ public class LogicScript : MonoBehaviour
     private void Revive()
     {
         _continued = true;
-        // Despeja los edificios cercanos para que no choque apenas reaparezca.
+        // Despeja los edificios y proyectiles cercanos para que no choque apenas reaparezca.
         float clearUntil = car.transform.position.x + 9f;
         foreach (var b in FindObjectsByType<BuildingsMoveScript>())
             if (b.transform.position.x < clearUntil) Destroy(b.gameObject);
+        Arcade?.OnRevive();
         carScript.Revive();
         State = GameState.Ready; // "toca para volar" de nuevo, conservando el puntaje
         pickMusic.Instance?.SetMuffled(false);
@@ -239,7 +325,7 @@ public class LogicScript : MonoBehaviour
         Interstitial.NotifyGameFinished();
     }
 
-    /// <summary>"Otra vez": nueva partida directa (salta el menú).</summary>
+    /// <summary>"Otra vez": nueva partida directa en el mismo modo (salta el menú).</summary>
     public void restartGame()
     {
         FinishRun();
@@ -281,7 +367,7 @@ public class LogicScript : MonoBehaviour
     /// <summary>Botón atrás de Android / Escape.</summary>
     private void OnBackPressed()
     {
-        if (_ui.HandleBack()) return; // cerró un submenú (opciones)
+        if (_ui.HandleBack()) return; // cerró un submenú (opciones, piloto)
         switch (State)
         {
             case GameState.Playing: Pause(); break;
@@ -302,11 +388,12 @@ public class LogicScript : MonoBehaviour
         if (!focus && State == GameState.Playing) Pause();
     }
 
-    public static int RankFor(int score)
+    public static int RankFor(int score, GameMode mode)
     {
+        var t = GameModes.RankThresholds(mode);
         int rank = 0;
-        for (int i = 1; i < RankThresholds.Length; i++)
-            if (score >= RankThresholds[i]) rank = i;
+        for (int i = 1; i < t.Length; i++)
+            if (score >= t[i]) rank = i;
         return rank;
     }
 }

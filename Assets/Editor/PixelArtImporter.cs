@@ -11,8 +11,27 @@ public class PixelArtImporter : AssetPostprocessor
     public const string Folder = "Assets/Resources/Pixel/";
     public const float PixelsPerUnit = 20f;
 
+    public const string SkinsFolder = "Assets/Resources/Skins/";
+
     private void OnPreprocessTexture()
     {
+        if (assetPath.StartsWith(SkinsFolder))
+        {
+            // Colores del auto (Tools/art/skins.py): 480x270 a 25 px/unidad = mismo tamaño que el
+            // sprite original de 1920x1080 a 100 px/unidad. Filtro suave: es ilustración, no pixel-art.
+            var skin = (TextureImporter)assetImporter;
+            skin.textureType = TextureImporterType.Sprite;
+            skin.spriteImportMode = SpriteImportMode.Single;
+            skin.spritePixelsPerUnit = 25f;
+            skin.filterMode = FilterMode.Bilinear;
+            skin.mipmapEnabled = false;
+            skin.alphaIsTransparency = true;
+            var st = new TextureImporterSettings();
+            skin.ReadTextureSettings(st);
+            st.spriteAlignment = (int)SpriteAlignment.Center;
+            skin.SetTextureSettings(st);
+            return;
+        }
         if (!assetPath.StartsWith(Folder)) return;
 
         var importer = (TextureImporter)assetImporter;

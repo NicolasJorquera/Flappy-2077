@@ -401,6 +401,201 @@ def platform_bridge(seed):
     return img
 
 
+def tower_pagoda(seed):
+    """Torre escalonada tipo pagoda con aleros de neón."""
+    rnd = random.Random(seed)
+    w, h = 44, 200
+    img = Image.new("RGBA", (w, h), CLEAR)
+    y = h - 1
+    widths = [36, 32, 28, 24, 20, 16]
+    for i, bw in enumerate(widths):
+        tier_h = 26 if i < 4 else 20
+        x0 = (w - bw) // 2
+        rect(img, x0, y - tier_h + 1, x0 + bw - 1, y, P["magenta"] if i % 2 == 0 else P["violet"])
+        window_grid(img, x0 + 3, y - tier_h + 6, x0 + bw - 4, y - 3, rnd, WIN, p=0.5)
+        # alero con borde de neón
+        rect(img, x0 - 4, y - tier_h - 1, x0 + bw + 3, y - tier_h + 1, P["royal"])
+        rect(img, x0 - 4, y - tier_h + 2, x0 + bw + 3, y - tier_h + 2, P["pink"] if i % 2 == 0 else P["cyan"])
+        put(img, x0 - 4, y - tier_h + 3, P["coral"])
+        put(img, x0 + bw + 3, y - tier_h + 3, P["coral"])
+        y -= tier_h + 3
+    rect(img, w // 2 - 1, max(0, y - 18), w // 2, y, P["royal"])
+    put(img, w // 2 - 1, max(0, y - 19), P["coral"]); put(img, w // 2, max(0, y - 19), P["coral"])
+    outline(img, P["shadow"])
+    return img
+
+
+def tower_corp(seed):
+    """Torre corporativa de vidrio con panel de logo luminoso."""
+    rnd = random.Random(seed)
+    w, h = 38, 210
+    img = Image.new("RGBA", (w, h), CLEAR)
+    rect(img, 4, 20, 33, h - 1, P["royal"])
+    # vidrio: franjas diagonales tenues
+    for y in range(20, h):
+        for x in range(5, 33):
+            if (x + y) % 9 == 0:
+                put(img, x, y, P["sky"])
+            elif (x + y) % 9 == 1:
+                put(img, x, y, (66, 140, 255, 130))
+    for y in range(26, h - 6, 5):
+        rect(img, 5, y, 32, y, P["indigo"])
+        for x in range(6, 32, 2):
+            if rnd.random() < 0.18:
+                put(img, x, y + 2, rnd.choice([P["cyan"], P["white"], P["amber"]]))
+    # corona inclinada
+    for i in range(14):
+        rect(img, 4 + i, 20 - i, 33, 20 - i, P["royal"])
+    rect(img, 30, 0, 31, 7, P["royal"])
+    put(img, 30, 0, P["coral"]); put(img, 31, 0, P["coral"])
+    # panel de logo
+    rect(img, 9, 40, 28, 58, P["shadow"])
+    rect(img, 10, 41, 27, 57, P["wine"])
+    for (x, y) in ((14, 44), (13, 45), (12, 46), (13, 47), (14, 48), (15, 49), (16, 50), (17, 51), (18, 52),
+                   (19, 51), (20, 50), (21, 49), (22, 48), (23, 47), (24, 46), (23, 45), (22, 44)):
+        rect(img, x, y, x + 1, y + 1, P["cyan"])
+    rect(img, 14, 54, 23, 55, P["pink"])
+    outline(img, P["shadow"])
+    return img
+
+
+def tower_shops(seed):
+    """Bloque estrecho de tiendas apiladas con toldos y letreros laterales."""
+    rnd = random.Random(seed)
+    w, h = 40, 180
+    img = Image.new("RGBA", (w, h), CLEAR)
+    y = h - 1
+    awnings = [P["pink"], P["cyan"], P["amber"], P["rose"], P["mint"]]
+    i = 0
+    while y > 24:
+        fh = rnd.randint(18, 26)
+        body = rnd.choice([P["plum"], P["violet"], P["magenta"], P["wine"]])
+        rect(img, 6, y - fh + 1, 33, y, body)
+        rect(img, 9, y - fh + 7, 30, y - 3, P["shadow"])
+        for x in range(10, 30, 4):
+            rect(img, x, y - fh + 8, x + 2, y - 4, rnd.choice([P["amber"], P["peach"], P["cyan"], P["rose"]]) if rnd.random() < 0.6 else P["indigo"])
+        # toldo a rayas
+        col = awnings[i % len(awnings)]
+        for x in range(4, 36):
+            rect(img, x, y - fh + 2, x, y - fh + 4, col if (x // 2) % 2 == 0 else P["white"])
+        # letrero lateral alterno
+        if i % 2 == 0:
+            rect(img, 34, y - fh + 6, 39, y - 4, P["shadow"])
+            for yy in range(y - fh + 7, y - 5, 3):
+                rect(img, 35, yy, 38, yy + 1, col)
+        else:
+            rect(img, 0, y - fh + 6, 5, y - 4, P["shadow"])
+            for yy in range(y - fh + 7, y - 5, 3):
+                rect(img, 1, yy, 4, yy + 1, col)
+        y -= fh
+        i += 1
+    rect(img, 8, y - 8, 31, y, P["violet"])
+    rect(img, 12, y - 14, 15, y - 9, P["indigo"])  # tanque de agua
+    outline(img, P["shadow"])
+    return img
+
+
+def tower_antenna(seed):
+    """Torre de comunicaciones: estructura de celosía, antena parabólica y luces rojas."""
+    rnd = random.Random(seed)
+    w, h = 36, 200
+    img = Image.new("RGBA", (w, h), CLEAR)
+    rect(img, 8, 70, 27, h - 1, P["indigo"])
+    rect(img, 10, 70, 25, h - 1, P["violet"])
+    window_grid(img, 12, 76, 23, h - 6, rnd, [P["cyan"], P["sky"], P["mint"]], p=0.45, step=(3, 4))
+    # celosía
+    for y in range(8, 70):
+        half = 2 + (y - 8) // 9
+        put(img, 17 - half, y, P["royal"]); put(img, 18 + half, y, P["royal"])
+        if y % 6 == 0:
+            rect(img, 17 - half, y, 18 + half, y, P["royal"])
+            put(img, 17, y + 2, P["royal"]); put(img, 18, y + 2, P["royal"])
+    rect(img, 17, 0, 18, 8, P["royal"])
+    for y in (0, 22, 44):
+        put(img, 17, y, P["coral"]); put(img, 18, y, P["coral"])
+    # parabólica
+    for i in range(9):
+        rect(img, 24 + i // 2, 46 + i, 26 + i // 2, 46 + i, P["lilac"])
+    rect(img, 22, 50, 25, 51, P["royal"])
+    outline(img, P["shadow"])
+    return img
+
+
+def top_billboard(seed):
+    """Pantalla gigante colgando de dos cables (obstáculo superior)."""
+    rnd = random.Random(seed)
+    w, h = 50, 180
+    img = Image.new("RGBA", (w, h), CLEAR)
+    rect(img, 10, 0, 10, h - 46, P["violet"])
+    rect(img, 39, 0, 39, h - 46, P["violet"])
+    rect(img, 1, h - 46, 48, h - 4, P["royal"])
+    rect(img, 3, h - 44, 46, h - 6, P["shadow"])
+    # contenido: "2077" a bloques y barras
+    digits = {"2": ["###", "..#", "###", "#..", "###"], "0": ["###", "#.#", "#.#", "#.#", "###"], "7": ["###", "..#", ".#.", ".#.", ".#."]}
+    x = 7
+    for ch in "2077":
+        for r, row in enumerate(digits[ch]):
+            for k, v in enumerate(row):
+                if v == "#":
+                    rect(img, x + k * 2, h - 40 + r * 2, x + k * 2 + 1, h - 39 + r * 2, P["pink"])
+        x += 9
+    for yy in range(h - 26, h - 8, 3):
+        ln = rnd.randint(14, 38)
+        rect(img, 6, yy, 6 + ln, yy, P["cyan"] if yy % 2 else P["mint"])
+    for x in range(4, 46, 5):
+        put(img, x, h - 3, P["amber"])
+    outline(img, P["shadow"])
+    return img
+
+
+def top_cargo(seed):
+    """Contenedor de carga colgando del gancho de una grúa (obstáculo superior)."""
+    w, h = 44, 170
+    img = Image.new("RGBA", (w, h), CLEAR)
+    rect(img, 21, 0, 22, h - 44, P["violet"])
+    # gancho
+    rect(img, 18, h - 44, 25, h - 40, P["royal"])
+    rect(img, 6, h - 40, 37, h - 39, P["indigo"])
+    for i in range(6):
+        put(img, 21 - i * 2, h - 40 - i // 2, P["indigo"])
+        put(img, 22 + i * 2, h - 40 - i // 2, P["indigo"])
+    # contenedor corrugado
+    rect(img, 2, h - 38, 41, h - 2, P["wine"])
+    for x in range(4, 40, 3):
+        rect(img, x, h - 36, x, h - 4, P["plum"])
+    rect(img, 2, h - 38, 41, h - 37, P["coral"])
+    rect(img, 2, h - 3, 41, h - 2, P["shadow"])
+    rect(img, 8, h - 26, 35, h - 16, P["shadow"])
+    rect(img, 10, h - 24, 33, h - 18, P["amber"])
+    for x in range(12, 32, 4):
+        rect(img, x, h - 23, x + 1, h - 19, P["shadow"])
+    put(img, 3, h - 2, P["coral"]); put(img, 40, h - 2, P["coral"])
+    outline(img, P["shadow"])
+    return img
+
+
+def top_monorail(seed):
+    """Viga del monorriel con un tren pasando por debajo (obstáculo superior ancho)."""
+    rnd = random.Random(seed)
+    w, h = 60, 160
+    img = Image.new("RGBA", (w, h), CLEAR)
+    rect(img, 26, 0, 33, h - 40, P["royal"])
+    rect(img, 28, 0, 31, h - 40, P["indigo"])
+    rect(img, 0, h - 42, 59, h - 34, P["royal"])
+    rect(img, 0, h - 41, 59, h - 41, P["sky"])
+    # tren colgante
+    rect(img, 2, h - 33, 57, h - 6, P["violet"])
+    rect(img, 2, h - 33, 57, h - 31, P["lilac"])
+    for x in range(5, 55, 7):
+        rect(img, x, h - 27, x + 4, h - 20, P["cyan"] if rnd.random() < 0.8 else P["amber"])
+        rect(img, x, h - 27, x + 4, h - 27, P["white"])
+    rect(img, 2, h - 15, 57, h - 13, P["pink"])
+    rect(img, 2, h - 5, 57, h - 3, P["shadow"])
+    put(img, 2, h - 18, P["amber"]); put(img, 57, h - 18, P["coral"])
+    outline(img, P["shadow"])
+    return img
+
+
 def buildings():
     global WIN
     WIN = [P["cyan"], P["cyan"], P["mint"], P["coral"], P["rose"], P["royal"]]
@@ -409,6 +604,192 @@ def buildings():
     save(tower_capsule(303), "bld_capsule")
     save(platform_hanging(304), "top_hanging")
     save(platform_bridge(305), "top_bridge")
+    save(tower_pagoda(306), "bld_pagoda")
+    save(tower_corp(307), "bld_corp")
+    save(tower_shops(308), "bld_shops")
+    save(tower_antenna(309), "bld_antenna")
+    save(top_billboard(310), "top_billboard")
+    save(top_cargo(311), "top_cargo")
+    save(top_monorail(312), "top_monorail")
+
+
+def sky_objects():
+    """Dirigible con pantalla y dron de reparto para el fondo."""
+    img = Image.new("RGBA", (48, 18), CLEAR)
+    for y in range(18):
+        for x in range(48):
+            if ((x - 23.5) / 23.5) ** 2 + ((y - 7.5) / 7.5) ** 2 <= 1:
+                put(img, x, y, P["indigo"] if y > 4 else P["violet"])
+    rect(img, 12, 4, 35, 10, P["shadow"])
+    for x in range(13, 35, 3):
+        rect(img, x, 5, x + 1, 9, P["pink"] if (x // 3) % 2 else P["cyan"])
+    rect(img, 19, 15, 28, 17, P["royal"])
+    put(img, 20, 17, P["amber"]); put(img, 27, 17, P["amber"])
+    rect(img, 0, 6, 2, 9, P["royal"])
+    save(img, "bg_blimp")
+
+    dr = Image.new("RGBA", (11, 6), CLEAR)
+    rect(dr, 3, 2, 7, 4, P["violet"])
+    rect(dr, 0, 1, 3, 1, P["lilac"]); rect(dr, 7, 1, 10, 1, P["lilac"])
+    put(dr, 5, 5, P["coral"])
+    rect(dr, 4, 3, 6, 3, P["cyan"])
+    save(dr, "bg_drone")
+
+
+# ---------------------------------------------------------------- arcade: chips y power-ups
+
+
+def chips():
+    """Chips de neón: +1 (cian), +5 (rosa), +10 (dorado). Hexágono con brillo y número."""
+    specs = {
+        "chip_1": (9, P["cyan"], P["white"], P["royal"]),
+        "chip_5": (11, P["pink"], P["rose"], P["plum"]),
+        "chip_10": (13, P["amber"], P["white"], hx("7a4a0a")),
+    }
+    for name, (s_, base, hi, dark) in specs.items():
+        img = Image.new("RGBA", (s_, s_), CLEAR)
+        c = (s_ - 1) / 2
+        for y in range(s_):
+            for x in range(s_):
+                # hexágono: |dx| + |dy|/2 <= r
+                if abs(x - c) * 0.87 + abs(y - c) * 0.5 <= c * 0.87 and abs(y - c) <= c:
+                    put(img, x, y, base)
+        outline_ring = img.copy().load()
+        px = img.load()
+        for y in range(s_):
+            for x in range(s_):
+                if outline_ring[x, y][3] and any(
+                    not (0 <= x + dx < s_ and 0 <= y + dy < s_) or outline_ring[x + dx, y + dy][3] == 0
+                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+                ):
+                    px[x, y] = dark
+        put(img, int(c) - 1, int(c) - 2, hi)
+        put(img, int(c) - 2, int(c) - 1, hi)
+        rect(img, int(c), int(c) - 1, int(c), int(c) + 1, dark)
+        save(img, name)
+
+
+PU_ICONS = {
+    "shield": ["..###..", ".#####.", "#######", "#######", ".#####.", "..###..", "...#..."],
+    "magnet": ["##...##", "##...##", "##...##", "##...##", "##...##", ".#####.", "..###.."],
+    "slow": ["#######", ".#...#.", "..#.#..", "...#...", "..#.#..", ".#...#.", "#######"],
+    "double": ["#.#.###", "#.#...#", ".#..###", "#.#.#..", "#.#.###", ".......", "......."],
+}
+PU_COLORS = {"shield": P["cyan"], "magnet": P["coral"], "slow": P["sky"], "double": P["amber"]}
+
+
+def powerups():
+    """Cápsulas de power-up 15x15: borde de neón y su ícono."""
+    for name, rows in PU_ICONS.items():
+        col = PU_COLORS[name]
+        img = Image.new("RGBA", (15, 15), CLEAR)
+        rect(img, 1, 0, 13, 14, P["shadow"])
+        rect(img, 0, 1, 14, 13, P["shadow"])
+        rect(img, 1, 1, 13, 13, (13, 3, 38, 255))
+        for i in range(1, 14):
+            put(img, i, 1, col); put(img, i, 13, col); put(img, 1, i, col); put(img, 13, i, col)
+        for y, row in enumerate(rows):
+            for x, v in enumerate(row):
+                if v == "#":
+                    put(img, 4 + x, 4 + y, P["white"])
+        save(img, "pu_" + name)
+        # icono suelto para el HUD
+        ic = Image.new("RGBA", (7, 7), CLEAR)
+        for y, row in enumerate(rows):
+            for x, v in enumerate(row):
+                if v == "#":
+                    put(ic, x, y, col)
+        save(ic, "ic_pu_" + name)
+
+
+# ---------------------------------------------------------------- jefes
+
+
+def boss_drone():
+    """Dron patrulla policial: casco con luces rojo/azul, cañón al frente (mira a la izquierda)."""
+    w, h = 44, 28
+    img = Image.new("RGBA", (w, h), CLEAR)
+    for y in range(6, 22):
+        for x in range(6, 40):
+            if ((x - 23) / 17) ** 2 + ((y - 14) / 8) ** 2 <= 1:
+                put(img, x, y, P["royal"] if y < 14 else P["indigo"])
+    rect(img, 12, 10, 34, 12, P["sky"])
+    rect(img, 14, 16, 32, 17, P["violet"])
+    # rotores
+    for x0 in (2, 30):
+        rect(img, x0, 3, x0 + 11, 4, P["lilac"])
+        rect(img, x0 + 5, 5, x0 + 6, 7, P["royal"])
+    # sirenas
+    rect(img, 16, 5, 20, 6, P["coral"]); rect(img, 26, 5, 30, 6, P["sky"])
+    # cañón
+    rect(img, 0, 13, 7, 15, P["shadow"]); rect(img, 0, 14, 3, 14, P["coral"])
+    # ojo
+    rect(img, 9, 12, 13, 15, P["coral"]); put(img, 10, 13, P["white"])
+    rect(img, 18, 22, 28, 24, P["royal"]); put(img, 20, 25, P["amber"]); put(img, 26, 25, P["amber"])
+    outline(img, P["shadow"])
+    save(img, "boss_drone")
+
+
+def boss_gunship():
+    """Cañonera corporativa: casco anguloso magenta con dos cañones y motor de plasma."""
+    w, h = 64, 36
+    img = Image.new("RGBA", (w, h), CLEAR)
+    for y in range(8, 30):
+        x0 = 6 + abs(y - 19) * 2 // 3
+        rect(img, x0, y, 56, y, P["magenta"] if y < 19 else P["wine"])
+    rect(img, 18, 4, 44, 8, P["violet"])
+    rect(img, 24, 5, 38, 7, P["cyan"])
+    for yy in (13, 25):
+        rect(img, 0, yy, 10, yy + 2, P["shadow"]); rect(img, 0, yy + 1, 4, yy + 1, P["pink"])
+    for x in range(16, 50, 6):
+        rect(img, x, 18, x + 3, 19, P["amber"])
+    rect(img, 56, 14, 63, 24, P["royal"])
+    rect(img, 58, 16, 63, 22, P["cyan"]); rect(img, 61, 17, 63, 21, P["white"])
+    rect(img, 30, 30, 36, 33, P["royal"])
+    outline(img, P["shadow"])
+    save(img, "boss_gunship")
+
+
+def boss_worm():
+    """Gusano del metro aéreo: cabeza de locomotora y segmentos-vagón."""
+    head = Image.new("RGBA", (30, 24), CLEAR)
+    rect(head, 6, 4, 29, 21, P["violet"])
+    for i in range(6):
+        rect(head, 6 - i, 4 + i, 6 - i, 21 - i, P["violet"])
+    rect(head, 2, 9, 9, 14, P["cyan"]); rect(head, 3, 10, 5, 11, P["white"])
+    rect(head, 12, 7, 27, 12, P["shadow"])
+    for x in range(13, 27, 4):
+        rect(head, x, 8, x + 2, 11, P["amber"])
+    rect(head, 6, 17, 29, 18, P["pink"])
+    rect(head, 0, 15, 4, 16, P["coral"])  # mandíbula de neón
+    outline(head, P["shadow"])
+    save(head, "boss_worm_head")
+    seg = Image.new("RGBA", (22, 18), CLEAR)
+    rect(seg, 1, 2, 20, 15, P["indigo"])
+    rect(seg, 1, 2, 20, 3, P["lilac"])
+    for x in range(3, 19, 5):
+        rect(seg, x, 6, x + 3, 10, P["cyan"])
+    rect(seg, 1, 12, 20, 12, P["pink"])
+    outline(seg, P["shadow"])
+    save(seg, "boss_worm_seg")
+
+
+def projectiles():
+    shot = Image.new("RGBA", (8, 3), CLEAR)
+    rect(shot, 0, 1, 7, 1, P["cyan"]); rect(shot, 4, 0, 7, 2, P["white"])
+    save(shot, "shot_player")
+    e = Image.new("RGBA", (6, 6), CLEAR)
+    rect(e, 1, 0, 4, 5, P["pink"]); rect(e, 0, 1, 5, 4, P["pink"]); rect(e, 2, 2, 3, 3, P["white"])
+    save(e, "shot_enemy")
+    m = Image.new("RGBA", (11, 11), CLEAR)
+    for y in range(11):
+        for x in range(11):
+            if (x - 5) ** 2 + (y - 5) ** 2 <= 16:
+                put(m, x, y, P["plum"])
+    for (x, y) in ((5, 0), (5, 10), (0, 5), (10, 5), (2, 2), (8, 8), (2, 8), (8, 2)):
+        put(m, x, y, P["coral"])
+    rect(m, 4, 4, 6, 6, P["amber"])
+    save(m, "mine")
 
 
 # ---------------------------------------------------------------- UI
@@ -642,12 +1023,28 @@ def audio():
     synth("ui_back", [(660, 0.05), (440, 0.07)])
     synth("ui_toggle", [(1046, 0.04)], vol=0.25)
     synth("new_best", [(523, 0.09), (659, 0.09), (784, 0.09), (1046, 0.22)], vol=0.3)
+    synth("chip_1", [(1568, 0.04), (2093, 0.05)], vol=0.18)
+    synth("chip_5", [(1175, 0.04), (1568, 0.04), (2349, 0.07)], vol=0.22)
+    synth("chip_10", [(1047, 0.05), (1319, 0.05), (1568, 0.05), (2093, 0.1)], vol=0.25)
+    synth("powerup", [(392, 0.06), (523, 0.06), (659, 0.06), (784, 0.06), (1047, 0.14)], vol=0.28)
+    synth("shield_break", [(330, 0.06), (220, 0.08), (147, 0.12)], vol=0.32)
+    synth("perfect", [(1319, 0.05), (1760, 0.08)], vol=0.2)
+    synth("alarm", [(880, 0.18), (660, 0.18), (880, 0.18), (660, 0.18)], vol=0.25)
+    synth("boss_hit", [(220, 0.03)], vol=0.15)
+    synth("boss_down", [(196, 0.1), (147, 0.12), (110, 0.2), (523, 0.08), (784, 0.2)], vol=0.32)
 
 
 if __name__ == "__main__":
     background()
     traffic()
+    sky_objects()
     buildings()
+    chips()
+    powerups()
+    boss_drone()
+    boss_gunship()
+    boss_worm()
+    projectiles()
     ui()
     audio()
     print("Arte generado en", OUT)

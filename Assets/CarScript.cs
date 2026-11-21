@@ -20,8 +20,8 @@ public class CarScript : MonoBehaviour
 
     /// <summary>Posición de vuelo: algo a la izquierda del centro para ver venir los edificios.</summary>
     public Vector2 flightPosition = new Vector2(-2.6f, 0.6f);
-    /// <summary>Posición en el menú: abajo a la izquierda, sin tapar el título ni los botones.</summary>
-    public Vector2 menuPosition = new Vector2(-5.4f, -1.4f);
+    /// <summary>Posición en el menú: a la derecha del título, sin tapar los botones.</summary>
+    public Vector2 menuPosition = new Vector2(5.2f, 2.3f);
 
     private AudioSource _audio;
     private Vector3 _baseScale;
@@ -30,6 +30,22 @@ public class CarScript : MonoBehaviour
     private bool _crashed;
     private Collider2D _collider;
     private Vector2 _hover;
+    private Sprite _originalUp, _originalDown;
+    private CarSkin _skin;
+
+    /// <summary>Aplica un color del auto (sprites recoloreados y colores de la estela).</summary>
+    public void ApplySkin(CarSkin skin)
+    {
+        if (_originalUp == null) { _originalUp = carUp; _originalDown = carDown; }
+        _skin = skin;
+        carUp = skin?.Up ?? _originalUp;
+        carDown = skin?.Down ?? _originalDown;
+        if (spriteRenderer != null) spriteRenderer.sprite = carDown;
+        if (skin == null || !skin.Holo) spriteRenderer.color = Color.white;
+    }
+
+    private Color TrailA => _skin != null ? _skin.TrailA : Fx.Pink;
+    private Color TrailB => _skin != null ? _skin.TrailB : Fx.Lilac;
 
     private void Start()
     {
@@ -41,8 +57,9 @@ public class CarScript : MonoBehaviour
         // La escena guarda flapStrength = 0; el script original lo fijaba aquí en 5.
         if (flapStrength <= 0f) flapStrength = 5f;
         _baseScale = transform.localScale;
+        if (_originalUp == null) { _originalUp = carUp; _originalDown = carDown; }
         carIsAlive = false;
-        _hover = LogicScript.WillSkipMenu ? flightPosition : menuPosition;
+        _hover = LogicScript.WillSkipMenu ? flightPosition : MenuHome();
         transform.position = new Vector3(_hover.x, _hover.y, transform.position.z);
     }
 
@@ -54,7 +71,7 @@ public class CarScript : MonoBehaviour
         if (state == GameState.Ready || state == GameState.Menu)
         {
             // Flota suave mientras espera; al pasar del menú a "listo" se desliza a su sitio.
-            var home = state == GameState.Menu ? menuPosition : flightPosition;
+            var home = state == GameState.Menu ? MenuHome() : flightPosition;
             _hover = Vector2.Lerp(_hover, home, 1f - Mathf.Exp(-4f * Time.deltaTime));
             float y = _hover.y + Mathf.Sin(Time.time * 3f) * 0.22f;
             transform.position = new Vector3(_hover.x, y, transform.position.z);
@@ -87,9 +104,33 @@ public class CarScript : MonoBehaviour
             transform.Rotate(0, 0, -420f * Time.deltaTime);
         }
 
+        if (_skin != null && _skin.Holo)
+            spriteRenderer.color = Color.HSVToRGB(Mathf.Repeat(Time.time * 0.25f, 1f), 0.45f, 1f);
+
         // "Squash & stretch" al impulsar.
         _squash = Mathf.MoveTowards(_squash, 0f, Time.deltaTime * 5f);
         transform.localScale = new Vector3(_baseScale.x * (1f - _squash * 0.12f), _baseScale.y * (1f + _squash * 0.18f), _baseScale.z);
+    }
+
+    private void FixedUpdate()
+    {
+        // El auto nunca se desplaza en horizontal mientras vuela (la ciudad es la que se mueve).
+        // FreezePositionX solo no basta: al reactivar el colisionador tras el escudo, la física
+        // recolocaba el cuerpo mientras el código lo inclina y aparecía un corrimiento lento.
+        if (carIsAlive && Logic.State == GameState.Playing)
+        {
+            var p = myRigidbody.position;
+            if (Mathf.Abs(p.x - flightPosition.x) > 0.0005f) myRigidbody.position = new Vector2(flightPosition.x, p.y);
+        }
+    }
+
+    /// <summary>Posición del menú, sin salirse en pantallas angostas (4:3).</summary>
+    private Vector2 MenuHome()
+    {
+        var cam = Camera.main;
+        if (cam == null) return menuPosition;
+        float halfW = cam.orthographicSize * cam.aspect;
+        return new Vector2(Mathf.Min(menuPosition.x, halfW - 1.7f), menuPosition.y);
     }
 
     private bool FlapPressed()
@@ -141,7 +182,7 @@ public class CarScript : MonoBehaviour
             Vector2 rear = RearPoint();
             for (int i = 0; i < 7; i++)
             {
-                var c = i % 2 == 0 ? Fx.Pink : Fx.Cyan;
+                var c = i % 2 == 0 ? TrailA : TrailB;
                 Fx.Instance.Emit(rear + Random.insideUnitCircle * 0.08f,
                     new Vector2(Random.Range(-4f, -2f), Random.Range(-2.5f, -0.5f)), c, Random.Range(0.07f, 0.13f), Random.Range(0.25f, 0.45f));
             }
@@ -155,7 +196,7 @@ public class CarScript : MonoBehaviour
         if (_trailTimer > 0f) return;
         _trailTimer = interval;
         Vector2 rear = RearPoint();
-        var c = Random.value < 0.5f ? Fx.Pink : Fx.Lilac;
+        var c = Random.value < 0.5f ? TrailA : TrailB;
         c.a = 0.85f;
         Fx.Instance.Emit(rear + new Vector2(0f, Random.Range(-0.05f, 0.05f)),
             new Vector2(-LogicScript.WorldSpeed * speedScale - 1f, Random.Range(-0.2f, 0.2f)), c, Random.Range(0.05f, 0.09f), 0.35f, order: -1);
@@ -171,7 +212,16 @@ public class CarScript : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (carIsAlive) Crash("choque con " + collision.collider.name);
+        if (!carIsAlive) return;
+        // Arcade: el escudo absorbe un choque.
+        if (Logic.Arcade != null && Logic.Arcade.TryAbsorbHit()) return;
+        Crash("choque con " + collision.collider.name);
+    }
+
+    /// <summary>Impacto de un proyectil o del cuerpo de un jefe (el escudo ya se revisó).</summary>
+    public void CrashFromHazard()
+    {
+        if (carIsAlive) Crash("impacto de jefe");
     }
 
     private void OnBecameInvisible()

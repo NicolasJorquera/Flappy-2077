@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 #if FLAPPY_PLAY_GAMES && UNITY_ANDROID
 using GooglePlayGames;
@@ -5,24 +6,33 @@ using GooglePlayGames.BasicApi;
 #endif
 
 /// <summary>
-/// Tablero mundial de puntajes con Google Play Games Services (gratis, sin servidor).
-///
-/// Queda desactivado hasta configurar Play Games en Play Console. Para activarlo:
-///   1. Play Console → Play Games Services → crear el proyecto y un tablero "Best score".
-///   2. Poner su ID en <see cref="LeaderboardId"/>.
-///   3. Window → Google Play Games → Setup → Android setup, pegando los recursos que da Play Console
-///      (escribe el App ID en el manifiesto).
-///   4. Agregar FLAPPY_PLAY_GAMES a Scripting Define Symbols de Android.
-/// Sin esos pasos el plugin no se incluye y el botón de ranking no aparece (ver docs/MONETIZACION.md).
+/// Rankings mundiales con Google Play Games Services (gratis, sin servidor), uno por modo.
+/// Configuración en docs/MONETIZACION.md (App ID 217847290651, proyecto vinculado a SmartMirror).
+/// Un modo sin ID de tablero simplemente no sube puntajes; el botón de ranking abre la lista de
+/// todos los tableros publicados.
 /// </summary>
 public static class Leaderboard
 {
-    /// <summary>ID del tablero de Play Console (formato "CgkI...").</summary>
+    /// <summary>ID del tablero clásico ("Best score").</summary>
     public const string LeaderboardId = "CgkIm7bXxasGEAIQAQ";
+    /// <summary>Tableros de Arcade y Diario: pegar los IDs al crearlos en Play Console.</summary>
+    public const string ArcadeLeaderboardId = "CgkIm7bXxasGEAIQAw";
+    public const string DailyLeaderboardId = "CgkIm7bXxasGEAIQBA";
+
+    public static string IdFor(GameMode mode)
+    {
+        switch (mode)
+        {
+            case GameMode.Arcade: return ArcadeLeaderboardId;
+            case GameMode.Daily: return DailyLeaderboardId;
+            case GameMode.Bosses: return ""; // práctica: sin ranking
+            default: return LeaderboardId;
+        }
+    }
 
 #if FLAPPY_PLAY_GAMES && UNITY_ANDROID && !UNITY_EDITOR
     private static bool _started;
-    private static int _pendingScore;
+    private static readonly Dictionary<GameMode, int> Pending = new Dictionary<GameMode, int>();
 
     public static bool Available => !string.IsNullOrEmpty(LeaderboardId);
 
@@ -35,49 +45,56 @@ public static class Leaderboard
         PlayGamesPlatform.Instance.Authenticate(OnSignIn);
     }
 
-    /// <summary>Sube el puntaje (Google guarda el mejor de cada jugador).</summary>
-    public static void Submit(int score)
+    public static void Submit(int score) => Submit(GameMode.Classic, score);
+
+    /// <summary>Sube el puntaje al tablero del modo (Google guarda el mejor de cada jugador).</summary>
+    public static void Submit(GameMode mode, int score)
     {
-        if (!Available || score <= 0) return;
+        string id = IdFor(mode);
+        if (!Available || string.IsNullOrEmpty(id) || score <= 0) return;
         if (!PlayGamesPlatform.Instance.IsAuthenticated())
         {
-            _pendingScore = Mathf.Max(_pendingScore, score);
+            Pending[mode] = Mathf.Max(Pending.TryGetValue(mode, out var p) ? p : 0, score);
             return;
         }
-        PlayGamesPlatform.Instance.ReportScore(score, LeaderboardId, ok =>
+        PlayGamesPlatform.Instance.ReportScore(score, id, ok =>
         {
             if (!ok) Debug.LogWarning("Play Games: no se pudo subir el puntaje");
         });
     }
 
-    /// <summary>Abre el ranking de Google; si no hay sesión, la pide primero.</summary>
+    /// <summary>Abre la lista de rankings de Google; si no hay sesión, la pide primero.</summary>
     public static void Show()
     {
         if (!Available) return;
         if (PlayGamesPlatform.Instance.IsAuthenticated())
         {
-            PlayGamesPlatform.Instance.ShowLeaderboardUI(LeaderboardId);
+            PlayGamesPlatform.Instance.ShowLeaderboardUI();
             return;
         }
         PlayGamesPlatform.Instance.ManuallyAuthenticate(status =>
         {
             OnSignIn(status);
-            if (status == SignInStatus.Success) PlayGamesPlatform.Instance.ShowLeaderboardUI(LeaderboardId);
+            if (status == SignInStatus.Success) PlayGamesPlatform.Instance.ShowLeaderboardUI();
         });
     }
 
     private static void OnSignIn(SignInStatus status)
     {
         if (status != SignInStatus.Success) return;
-        // El récord local también cuenta (pudo lograrse sin sesión iniciada).
-        int best = Mathf.Max(_pendingScore, GameSettings.BestScore);
-        _pendingScore = 0;
-        Submit(best);
+        // Los récords locales también cuentan (pudieron lograrse sin sesión iniciada).
+        foreach (GameMode mode in System.Enum.GetValues(typeof(GameMode)))
+        {
+            int best = Mathf.Max(Pending.TryGetValue(mode, out var p) ? p : 0, GameSettings.BestFor(mode));
+            Submit(mode, best);
+        }
+        Pending.Clear();
     }
 #else
     public static bool Available => false;
     public static void Init() { }
     public static void Submit(int score) { }
+    public static void Submit(GameMode mode, int score) { }
     public static void Show() { }
 #endif
 }

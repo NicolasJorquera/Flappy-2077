@@ -17,6 +17,8 @@ public static class PlayGamesSetup
   <string name=""app_id"" translatable=""false"">217847290651</string>
   <string name=""package_name"" translatable=""false"">com.gonisoma.Flappy2077</string>
   <string name=""leaderboard_best_score"" translatable=""false"">CgkIm7bXxasGEAIQAQ</string>
+  <string name=""leaderboard_arcade"" translatable=""false"">CgkIm7bXxasGEAIQAw</string>
+  <string name=""leaderboard_daily_challenge"" translatable=""false"">CgkIm7bXxasGEAIQBA</string>
 </resources>";
 
     public const string Define = "FLAPPY_PLAY_GAMES";

@@ -23,10 +23,22 @@ public class GameUI : MonoBehaviour
     private LogicScript _logic;
     private RectTransform _safe;
 
-    private GameObject _menu, _ready, _hud, _pause, _options, _over;
+    private GameObject _menu, _ready, _hud, _pause, _options, _over, _pilot, _bossGallery;
+    private readonly List<Action> _galleryRefreshers = new List<Action>();
+    private Button _menuBosses;
+    private PixelText _overTitle;
+    private GameObject _overPanel;
+    private RectTransform _popups;
+    private PixelText _multiplier, _readyMode, _overMode, _overMissions, _bossName, _bossWarning, _menuPilot;
+    private readonly Dictionary<GameMode, PixelText> _modeBest = new Dictionary<GameMode, PixelText>();
+    private Image _puIcon, _puBar, _shieldIcon, _bossBar;
+    private GameObject _puGroup, _bossGroup;
+    private float _bossWarningTime;
+    private readonly Dictionary<PowerUp, Sprite> _puIcons = new Dictionary<PowerUp, Sprite>();
+    private readonly List<Action> _pilotRefreshers = new List<Action>();
     private GameObject _optionsReturnTo;
-    private PixelText _score, _readyHint, _newBest, _overScore, _overBest, _rankName, _nextRank, _menuBest;
-    private Image _flash, _overMedal, _menuMedal;
+    private PixelText _score, _readyHint, _newBest, _overScore, _overBest, _rankName, _nextRank;
+    private Image _flash, _overMedal;
     private Button _continue, _retry, _menuNoAds, _menuRanking, _overRanking;
     private PixelText _continueText, _toast;
     private float _toastTime;
@@ -80,6 +92,11 @@ public class GameUI : MonoBehaviour
         BuildPause();
         BuildOptions();
         BuildGameOver();
+        BuildPilot();
+        BuildBossGallery();
+
+        _popups = Node("Popups", transform);
+        Stretch(_popups);
 
         var flash = Node("Flash", transform);
         Stretch(flash);
@@ -126,21 +143,40 @@ public class GameUI : MonoBehaviour
         year.GlowColor = new Color(0.35f, 0.0f, 0.48f, 0.9f);
         LabelKey(r, "tagline", 4, Cyan, new Vector2(0.5f, 1f), new Vector2(0, -368), new Vector2(900, 40));
 
-        MakeButton(r, "play", new Vector2(0.5f, 0f), new Vector2(0, 250), new Vector2(380, 92), true, () =>
+        // Modos de juego: cada uno con su récord debajo.
+        var modes = new[] { GameMode.Classic, GameMode.Arcade, GameMode.Daily };
+        for (int i = 0; i < modes.Length; i++)
         {
-            Sfx.Click();
-            _logic.Play();
-        });
-        MakeButton(r, "options", new Vector2(0.5f, 0f), new Vector2(0, 140), new Vector2(380, 80), false, () =>
+            var mode = modes[i];
+            float x = (i - 1) * 270f; // cabe en 4:3 (960 de ancho de lienzo)
+            MakeButton(r, GameModes.Key(mode), new Vector2(0.5f, 0f), new Vector2(x, 236), new Vector2(250, 92), mode != GameMode.Classic, () =>
+            {
+                Sfx.Click();
+                _logic.Play(mode);
+            });
+            _modeBest[mode] = Label(r, "", 4, Amber, new Vector2(0.5f, 0f), new Vector2(x, 168), new Vector2(250, 36));
+        }
+        MakeButton(r, "options", new Vector2(0.5f, 0f), new Vector2(-270, 76), new Vector2(250, 72), false, () =>
         {
             Sfx.Click();
             OpenOptions(_menu);
         });
+        _menuBosses = MakeButton(r, "mode_bosses", new Vector2(0.5f, 0f), new Vector2(0, 76), new Vector2(250, 72), false, () =>
+        {
+            Sfx.Click();
+            OpenBossGallery();
+        });
+        var pilot = MakeButton(r, "pilot", new Vector2(0.5f, 0f), new Vector2(270, 76), new Vector2(250, 72), false, () =>
+        {
+            Sfx.Click();
+            OpenPilot();
+        });
+        _menuPilot = pilot.GetComponentInChildren<PixelText>();
 
         _menuNoAds = MakeButton(r, "no_ads", new Vector2(0f, 1f), new Vector2(190, -62), new Vector2(320, 72), false, () =>
         {
             Sfx.Click();
-            NoAdsStore.Buy();
+            BuyNoAds();
         });
         _menuRanking = MakeIconButton(r, "Pixel/ic_trophy", new Vector2(1f, 1f), new Vector2(-70, -66), new Vector2(92, 92), () =>
         {
@@ -148,8 +184,6 @@ public class GameUI : MonoBehaviour
             Leaderboard.Show();
         });
 
-        _menuMedal = Icon(r, null, new Vector2(0.5f, 0f), new Vector2(-150, 62), new Vector2(54, 54));
-        _menuBest = Label(r, "", 5, Amber, new Vector2(0.5f, 0f), new Vector2(30, 62), new Vector2(320, 50));
     }
 
     private void BuildReady()
@@ -161,6 +195,8 @@ public class GameUI : MonoBehaviour
         _readyHint.gameObject.AddComponent<Blink>();
         if (!Application.isMobilePlatform)
             LabelKey(r, "tap_hint_keys", 4, Dim, new Vector2(0.5f, 0.5f), new Vector2(160, -220), new Vector2(760, 40));
+
+        _readyMode = Label(r, "", 4, Cyan, new Vector2(0.5f, 1f), new Vector2(0, -190), new Vector2(1000, 40));
 
         // Flecha pixel que apunta al auto.
         var arrow = Label(r, "<<", 7, Pink, new Vector2(0.5f, 0.5f), new Vector2(-95, 40), new Vector2(120, 70));
@@ -181,6 +217,58 @@ public class GameUI : MonoBehaviour
             _logic.Pause();
         });
         pause.name = "Pause Button";
+
+        _multiplier = Label(r, "", 6, Pink, new Vector2(0.5f, 1f), new Vector2(0, -158), new Vector2(240, 46));
+        _multiplier.Glow = true;
+        _multiplier.GlowColor = new Color(0.35f, 0f, 0.48f, 0.9f);
+
+        foreach (PowerUp pu in new[] { PowerUp.Shield, PowerUp.Magnet, PowerUp.Slow, PowerUp.Double })
+            _puIcons[pu] = Resources.Load<Sprite>("Pixel/ic_pu_" + pu.ToString().ToLowerInvariant());
+        _puGroup = Node("PowerUp", r).gameObject;
+        var pg = (RectTransform)_puGroup.transform;
+        Place(pg, new Vector2(0f, 1f), new Vector2(150, -66), new Vector2(220, 70));
+        _puIcon = Icon(pg, null, new Vector2(0f, 0.5f), new Vector2(30, 0), new Vector2(52, 52));
+        var barBg = Node("Bar bg", pg);
+        Place(barBg, new Vector2(0f, 0.5f), new Vector2(140, 0), new Vector2(140, 16));
+        barBg.gameObject.AddComponent<Image>().color = new Color(0.1f, 0.03f, 0.25f, 0.9f);
+        var bar = Node("Bar", barBg);
+        bar.anchorMin = new Vector2(0f, 0f); bar.anchorMax = new Vector2(0f, 1f); bar.pivot = new Vector2(0f, 0.5f);
+        bar.offsetMin = bar.offsetMax = Vector2.zero; bar.sizeDelta = new Vector2(140, 0);
+        _puBar = bar.gameObject.AddComponent<Image>();
+        _puBar.raycastTarget = false;
+        _shieldIcon = Icon(r, "Pixel/ic_pu_shield", new Vector2(0f, 1f), new Vector2(54, -140), new Vector2(52, 52));
+
+        _bossGroup = Node("Boss", r).gameObject;
+        var bg = (RectTransform)_bossGroup.transform;
+        Place(bg, new Vector2(0.5f, 1f), new Vector2(0, -214), new Vector2(560, 70));
+        _bossName = Label(bg, "", 4, Pink, new Vector2(0.5f, 1f), new Vector2(0, -16), new Vector2(560, 30));
+        var bbg = Node("Bar bg", bg);
+        Place(bbg, new Vector2(0.5f, 0f), new Vector2(0, 16), new Vector2(520, 18));
+        bbg.gameObject.AddComponent<Image>().color = new Color(0.1f, 0.03f, 0.25f, 0.9f);
+        var bb = Node("Bar", bbg);
+        bb.anchorMin = new Vector2(0f, 0f); bb.anchorMax = new Vector2(0f, 1f); bb.pivot = new Vector2(0f, 0.5f);
+        bb.offsetMin = bb.offsetMax = Vector2.zero; bb.sizeDelta = new Vector2(520, 0);
+        _bossBar = bb.gameObject.AddComponent<Image>();
+        _bossBar.color = Pink;
+        _bossBar.raycastTarget = false;
+
+        _bossWarning = Label(r, "", 8, Pink, new Vector2(0.5f, 0.5f), new Vector2(0, 60), new Vector2(1100, 140));
+        _bossWarning.Glow = true;
+        _bossWarning.GlowColor = new Color(0.35f, 0f, 0.48f, 0.9f);
+        _bossWarning.gameObject.AddComponent<Blink>().Period = 0.4f;
+        ResetHud();
+    }
+
+    private int _shownMultiplier = 1;
+
+    private void ResetHud()
+    {
+        _shownMultiplier = 1;
+        _multiplier.text = "";
+        _puGroup.SetActive(false);
+        _shieldIcon.gameObject.SetActive(false);
+        _bossGroup.SetActive(false);
+        _bossWarning.gameObject.SetActive(false);
     }
 
     private void BuildPause()
@@ -212,7 +300,7 @@ public class GameUI : MonoBehaviour
         _options = MakeScreen("Options").gameObject;
         var r = (RectTransform)_options.transform;
         Dimmer(r, 0.7f);
-        var panel = Panel(r, new Vector2(0, 0), new Vector2(980, 680));
+        var panel = Panel(r, new Vector2(0, 0), new Vector2(920, 680));
         LabelKey(panel, "options", 9, White, new Vector2(0.5f, 1f), new Vector2(0, -62), new Vector2(700, 80)).Glow = true;
 
         float y = -146f;
@@ -290,11 +378,15 @@ public class GameUI : MonoBehaviour
         var title = LabelKey(r, "game_over", 11, Pink, new Vector2(0.5f, 1f), new Vector2(0, -64), new Vector2(900, 100));
         title.Glow = true;
         title.GlowColor = new Color(0.35f, 0.0f, 0.48f, 0.9f);
+        _overTitle = title;
 
+        _overMode = Label(r, "", 3, Cyan, new Vector2(0.5f, 1f), new Vector2(0, -118), new Vector2(700, 26));
+        _overMissions = Label(r, "", 4, Amber, new Vector2(0.5f, 0.5f), new Vector2(0, -118), new Vector2(1000, 34));
         _newBest = LabelKey(r, "new_best", 5, Amber, new Vector2(0.5f, 0.5f), new Vector2(0, 200), new Vector2(700, 44));
         _newBest.gameObject.AddComponent<Blink>();
 
         var panel = Panel(r, new Vector2(0, 40), new Vector2(640, 260));
+        _overPanel = panel.gameObject;
         LabelKey(panel, "score", 4, Dim, new Vector2(0f, 1f), new Vector2(190, -44), new Vector2(300, 36));
         _overScore = Label(panel, "0", 10, White, new Vector2(0f, 1f), new Vector2(190, -108), new Vector2(320, 86));
         LabelKey(panel, "best", 4, Dim, new Vector2(0f, 1f), new Vector2(190, -168), new Vector2(300, 36));
@@ -338,14 +430,21 @@ public class GameUI : MonoBehaviour
         _pause.SetActive(false);
         _options.SetActive(false);
         _over.SetActive(false);
+        _pilot.SetActive(false);
+        _bossGallery.SetActive(false);
     }
 
     public void ShowMenu()
     {
         HideAll();
-        int best = GameSettings.BestScore;
-        _menuBest.text = Loc.Get("best") + " " + best;
-        SetMedal(_menuMedal, LogicScript.RankFor(best));
+        foreach (var kv in _modeBest)
+        {
+            int best = GameSettings.BestFor(kv.Key);
+            kv.Value.text = kv.Key == GameMode.Daily
+                ? Loc.Format("today_best", GameModes.DailyLabel, best)
+                : Loc.Get("best") + " " + best;
+        }
+        _menuPilot.text = Loc.Format("pilot_level", GameSettings.Level);
         Show(_menu);
     }
 
@@ -353,6 +452,10 @@ public class GameUI : MonoBehaviour
     {
         HideAll();
         _score.text = score.ToString();
+        var mode = LogicScript.Mode;
+        _readyMode.text = mode == GameMode.Arcade ? Loc.Get("hint_arcade")
+            : mode == GameMode.Daily ? Loc.Format("hint_daily", GameModes.DailyLabel)
+            : mode == GameMode.Bosses ? PracticeLabel() : "";
         Show(_ready);
         _hud.SetActive(true);
         _hud.transform.Find("Pause Button")?.gameObject.SetActive(false);
@@ -361,6 +464,7 @@ public class GameUI : MonoBehaviour
     public void ShowHud()
     {
         HideAll();
+        if (LogicScript.Mode == GameMode.Classic) ResetHud();
         _hud.SetActive(true);
         _hud.transform.Find("Pause Button")?.gameObject.SetActive(true);
     }
@@ -379,10 +483,11 @@ public class GameUI : MonoBehaviour
         _scorePunch = big ? 1f : 0.5f;
     }
 
-    public void ShowGameOver(int score, int best, bool newBest)
+    public void ShowGameOver(int score, int best, bool newBest, List<Mission> missions)
     {
         HideAll();
         Show(_over);
+        var mode = LogicScript.Mode;
         bool canContinue = _logic.CanContinue;
         _continue.gameObject.SetActive(canContinue);
         SetContinueBusy(false);
@@ -392,15 +497,41 @@ public class GameUI : MonoBehaviour
         _overRanking.gameObject.SetActive(Leaderboard.Available);
         _newBest.gameObject.SetActive(newBest);
         _overBest.text = best.ToString();
-        int rank = LogicScript.RankFor(score);
+        _overMode.text = mode == GameMode.Daily ? Loc.Format("hint_daily", GameModes.DailyLabel)
+            : mode == GameMode.Bosses ? PracticeLabel() : Loc.Get(GameModes.Key(mode));
+        // Práctica de jefes: solo el resultado (sin puntaje, récord ni rango).
+        bool practice = mode == GameMode.Bosses;
+        _overPanel.SetActive(!practice);
+        _overTitle.SetKey(practice && _logic.PracticeWon ? "boss_victory" : "game_over");
+        _overTitle.color = practice && _logic.PracticeWon ? Cyan : Pink;
+        var thresholds = GameModes.RankThresholds(mode);
+        int rank = LogicScript.RankFor(score, mode);
         SetMedal(_overMedal, rank);
         _rankName.SetKey(LogicScript.RankKeys[rank]);
-        if (rank + 1 < LogicScript.RankThresholds.Length)
+        if (rank + 1 < thresholds.Length)
         {
             _nextRank.gameObject.SetActive(true);
-            _nextRank.SetKey("next_rank", LogicScript.RankThresholds[rank + 1]);
+            _nextRank.SetKey("next_rank", thresholds[rank + 1]);
         }
         else _nextRank.gameObject.SetActive(false);
+
+        // Misiones cumplidas y subida de nivel.
+        if (missions != null && missions.Count > 0)
+        {
+            _overMissions.text = missions.Count == 1
+                ? Loc.Format("mission_done", missions[0].Description, Missions.LastXpGained)
+                : Loc.Format("missions_done", missions.Count, Missions.LastXpGained);
+            _overMissions.gameObject.SetActive(true);
+        }
+        else _overMissions.gameObject.SetActive(false);
+        if (Missions.LastLevelAfter > Missions.LastLevelBefore)
+        {
+            var unlocked = CarSkins.UnlockedAt(Missions.LastLevelAfter);
+            Toast(unlocked != null
+                ? Loc.Format("level_up_skin", Missions.LastLevelAfter, Loc.Get(unlocked.NameKey))
+                : Loc.Format("level_up", Missions.LastLevelAfter));
+            Sfx.NewBest();
+        }
         StartCoroutine(CountUp(_overScore, score, newBest));
     }
 
@@ -423,12 +554,23 @@ public class GameUI : MonoBehaviour
 
     private void RefreshStoreButtons()
     {
-        bool showBuy = NoAdsStore.Available && !NoAdsStore.AdsRemoved;
+        bool showBuy = NoAdsStore.Supported && !NoAdsStore.AdsRemoved;
         _menuNoAds.gameObject.SetActive(showBuy);
-        if (showBuy) _menuNoAds.GetComponentInChildren<PixelText>().SetKey("no_ads_price", NoAdsStore.PriceText);
+        if (showBuy)
+        {
+            var label = _menuNoAds.GetComponentInChildren<PixelText>();
+            if (NoAdsStore.Available) label.SetKey("no_ads_price", NoAdsStore.PriceText);
+            else label.SetKey("no_ads");
+        }
         _menuRanking.gameObject.SetActive(Leaderboard.Available);
         if (_overRanking != null) _overRanking.gameObject.SetActive(Leaderboard.Available);
         RefreshOptions();
+    }
+
+    /// <summary>Compra "Sin anuncios"; si Google aún no entrega el producto, lo avisa.</summary>
+    private void BuyNoAds()
+    {
+        if (!NoAdsStore.Buy() && !NoAdsStore.AdsRemoved) Toast(Loc.Get("store_unavailable"));
     }
 
     private void OnPurchaseFinished(bool success)
@@ -446,10 +588,264 @@ public class GameUI : MonoBehaviour
             CloseOptions();
             return true;
         }
+        if (_pilot.activeSelf || _bossGallery.activeSelf)
+        {
+            Sfx.Back();
+            ShowMenu();
+            return true;
+        }
         return false;
     }
 
     public void Flash(Color color) => StartCoroutine(FlashRoutine(color));
+
+    // ================================================================== arcade: HUD y textos flotantes
+
+    public void SetArcadeHud(ArcadeDirector d)
+    {
+        if (!_hud.activeSelf) return;
+        int m = d.Multiplier * (d.TimedPower == PowerUp.Double ? 2 : 1);
+        if (m != _shownMultiplier)
+        {
+            _shownMultiplier = m; // armar el texto solo al cambiar: sin basura de memoria por frame
+            _multiplier.text = m > 1 ? "x" + m : "";
+        }
+        bool timed = d.TimedPower != PowerUp.None;
+        _puGroup.SetActive(timed);
+        if (timed)
+        {
+            _puIcon.sprite = _puIcons[d.TimedPower];
+            _puBar.rectTransform.sizeDelta = new Vector2(140f * d.TimedFraction, 0f);
+            _puBar.color = d.TimedPower == PowerUp.Magnet ? new Color(1f, 0.36f, 0.36f)
+                : d.TimedPower == PowerUp.Slow ? new Color(0.26f, 0.55f, 1f) : Amber;
+        }
+        _shieldIcon.gameObject.SetActive(d.HasShield);
+    }
+
+    /// <summary>"+N" flotante sobre un punto del mundo.</summary>
+    public void PopPoints(Vector3 world, string text, Color color) => PopText(world, text, color);
+
+    /// <summary>Texto flotante (puntos, "¡PERFECTO!", power-up) que sube y se desvanece.</summary>
+    public void PopText(Vector3 world, string text, Color color)
+    {
+        var cam = Camera.main;
+        if (cam == null) return;
+        Vector2 screen = cam.WorldToScreenPoint(world);
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(_popups, screen, null, out var local)) return;
+        var t = Label(_popups, text, 4, color, new Vector2(0.5f, 0.5f), local, new Vector2(400, 40));
+        t.GlowColor = new Color(0.05f, 0.01f, 0.15f, 0.9f);
+        t.Glow = true;
+        StartCoroutine(FloatAway(t));
+    }
+
+    private static IEnumerator FloatAway(PixelText t)
+    {
+        var rt = t.rectTransform;
+        Vector2 start = rt.anchoredPosition;
+        Color c = t.color;
+        float time = 0f;
+        while (time < 0.8f && t != null)
+        {
+            time += Time.unscaledDeltaTime;
+            rt.anchoredPosition = start + Vector2.up * (60f * time / 0.8f);
+            c.a = 1f - Mathf.Clamp01((time - 0.4f) / 0.4f);
+            t.color = c;
+            yield return null;
+        }
+        if (t != null) Destroy(t.gameObject);
+    }
+
+    public void ShowBossWarning(string bossName)
+    {
+        _bossWarning.text = Loc.Get("boss_alert") + "\n" + bossName;
+        _bossWarning.gameObject.SetActive(true);
+        _bossWarningTime = 2.2f;
+    }
+
+    public void ShowBossBar(string bossName)
+    {
+        _bossName.text = bossName;
+        _bossGroup.SetActive(true);
+        SetBossHealth(1f);
+    }
+
+    public void SetBossHealth(float fraction) => _bossBar.rectTransform.sizeDelta = new Vector2(520f * Mathf.Clamp01(fraction), 0f);
+
+    public void HideBossBar() => _bossGroup.SetActive(false);
+
+    // ================================================================== piloto: nivel, misiones y colores
+
+    private void BuildPilot()
+    {
+        _pilot = MakeScreen("Pilot").gameObject;
+        var r = (RectTransform)_pilot.transform;
+        Dimmer(r, 0.7f);
+        var panel = Panel(r, Vector2.zero, new Vector2(920, 690));
+
+        var level = Label(panel, "", 7, White, new Vector2(0.5f, 1f), new Vector2(0, -52), new Vector2(800, 60));
+        level.Glow = true;
+        var xpBg = Node("XP bg", panel);
+        Place(xpBg, new Vector2(0.5f, 1f), new Vector2(0, -102), new Vector2(600, 18));
+        xpBg.gameObject.AddComponent<Image>().color = new Color(0.1f, 0.03f, 0.25f, 0.9f);
+        var xp = Node("XP", xpBg);
+        xp.anchorMin = new Vector2(0f, 0f); xp.anchorMax = new Vector2(0f, 1f); xp.pivot = new Vector2(0f, 0.5f);
+        xp.offsetMin = xp.offsetMax = Vector2.zero;
+        var xpImg = xp.gameObject.AddComponent<Image>();
+        xpImg.color = Cyan;
+        var xpText = Label(panel, "", 3, Dim, new Vector2(0.5f, 1f), new Vector2(0, -130), new Vector2(600, 26));
+        _pilotRefreshers.Add(() =>
+        {
+            var (cur, need) = GameSettings.LevelProgress();
+            level.text = Loc.Format("pilot_level", GameSettings.Level);
+            xp.sizeDelta = new Vector2(600f * cur / need, 0f);
+            xpText.text = cur + " / " + need + " XP";
+        });
+
+        LabelKey(panel, "missions", 5, Pink, new Vector2(0.5f, 1f), new Vector2(0, -176), new Vector2(600, 40));
+        for (int i = 0; i < Missions.Slots; i++)
+        {
+            int index = i;
+            float y = -224 - i * 52;
+            var desc = Label(panel, "", 4, White, new Vector2(0f, 1f), new Vector2(310, y), new Vector2(540, 36));
+            desc.Alignment = PixelText.Align.Left;
+            var prog = Label(panel, "", 4, Amber, new Vector2(1f, 1f), new Vector2(-160, y), new Vector2(240, 36));
+            prog.Alignment = PixelText.Align.Right;
+            _pilotRefreshers.Add(() =>
+            {
+                var list = Missions.Active;
+                if (index >= list.Count) return;
+                var m = list[index];
+                desc.text = m.Description;
+                prog.text = m.Progress + "/" + m.Target + "  +" + m.Xp;
+            });
+        }
+
+        LabelKey(panel, "colors", 5, Pink, new Vector2(0.5f, 1f), new Vector2(0, -400), new Vector2(600, 40));
+        for (int i = 0; i < CarSkins.All.Length; i++)
+        {
+            var skin = CarSkins.All[i];
+            float x = (i - (CarSkins.All.Length - 1) / 2f) * 106f;
+            var b = ButtonBase(panel, "Skin " + i, new Vector2(0.5f, 1f), new Vector2(x, -490), new Vector2(98, 106), _buttonAlt, () =>
+            {
+                if (!skin.Unlocked)
+                {
+                    Sfx.Back();
+                    Toast(Loc.Format("skin_locked", skin.UnlockLevel));
+                    return;
+                }
+                Sfx.Toggle();
+                GameSettings.SelectedSkin = skin.Index;
+                _logic.carScript.ApplySkin(skin);
+                RefreshPilot();
+            });
+            var img = Icon((RectTransform)b.transform, null, new Vector2(0.5f, 0.5f), new Vector2(0, 6), new Vector2(88, 62));
+            img.sprite = skin.Up ?? _logic.carScript.carUp;
+            if (skin.Holo) img.color = new Color(0.8f, 1f, 1f);
+            var lockText = Label((RectTransform)b.transform, "", 3, Amber, new Vector2(0.5f, 0f), new Vector2(0, 18), new Vector2(96, 24));
+            var bimg = b.GetComponent<Image>();
+            _pilotRefreshers.Add(() =>
+            {
+                bool selected = CarSkins.Selected.Index == skin.Index;
+                bimg.sprite = selected ? _button : _buttonAlt;
+                img.color = skin.Unlocked ? (skin.Holo ? new Color(0.8f, 1f, 1f) : Color.white) : new Color(0.2f, 0.15f, 0.35f, 0.9f);
+                lockText.text = skin.Unlocked ? "" : Loc.Format("level_short", skin.UnlockLevel);
+            });
+        }
+        var skinName = Label(panel, "", 4, Cyan, new Vector2(0.5f, 1f), new Vector2(0, -572), new Vector2(600, 30));
+        _pilotRefreshers.Add(() => skinName.text = Loc.Get(CarSkins.Selected.NameKey));
+
+        MakeButton(panel, "back", new Vector2(0.5f, 0f), new Vector2(0, 52), new Vector2(300, 68), true, () =>
+        {
+            Sfx.Back();
+            ShowMenu();
+        });
+    }
+
+    // ================================================================== galería de jefes
+
+    private static readonly string[] BossSprites = { "boss_drone", "boss_gunship", "boss_worm_head" };
+    private static readonly string[] BossNames = { "boss_drone", "boss_gunship", "boss_worm" };
+    private static readonly string[] BossAttacks = { "boss_drone_desc", "boss_gunship_desc", "boss_worm_desc" };
+    private static readonly int[] BossHealth = { 18, 30, 40 };
+
+    private void BuildBossGallery()
+    {
+        _bossGallery = MakeScreen("Boss Gallery").gameObject;
+        var r = (RectTransform)_bossGallery.transform;
+        Dimmer(r, 0.7f);
+        var panel = Panel(r, Vector2.zero, new Vector2(880, 640));
+        var title = LabelKey(panel, "bosses_title", 7, White, new Vector2(0.5f, 1f), new Vector2(0, -58), new Vector2(800, 60));
+        title.Glow = true;
+        LabelKey(panel, "bosses_sub", 3, Dim, new Vector2(0.5f, 1f), new Vector2(0, -104), new Vector2(800, 26));
+
+        for (int i = 0; i < 3; i++)
+        {
+            int kind = i;
+            float x = (i - 1) * 270f;
+            var card = Node("Card " + i, panel);
+            Place(card, new Vector2(0.5f, 1f), new Vector2(x, -300), new Vector2(255, 330));
+            var bg = card.gameObject.AddComponent<Image>();
+            bg.sprite = _panel;
+            bg.type = Image.Type.Sliced;
+            bg.pixelsPerUnitMultiplier = 1.8f;
+            bg.color = new Color(0.85f, 0.8f, 1f, 1f);
+
+            var img = Icon(card, "Pixel/" + BossSprites[i], new Vector2(0.5f, 1f), new Vector2(0, -78), new Vector2(200, 110));
+            var name = Label(card, "", 4, Pink, new Vector2(0.5f, 1f), new Vector2(0, -150), new Vector2(240, 30));
+            name.SetKey(BossNames[i]);
+            var hp = Label(card, "", 3, White, new Vector2(0.5f, 1f), new Vector2(0, -186), new Vector2(240, 24));
+            hp.SetKey("boss_hp", BossHealth[i]);
+            var attack = Label(card, "", 3, Cyan, new Vector2(0.5f, 1f), new Vector2(0, -214), new Vector2(240, 24));
+            attack.SetKey(BossAttacks[i]);
+            var status = Label(card, "", 3, Amber, new Vector2(0.5f, 1f), new Vector2(0, -242), new Vector2(240, 24));
+            var fight = MakeButton(card, "fight", new Vector2(0.5f, 0f), new Vector2(0, 44), new Vector2(200, 64), true, () =>
+            {
+                Sfx.Click();
+                _logic.PlayBossPractice(kind);
+            });
+            _galleryRefreshers.Add(() =>
+            {
+                bool seen = GameSettings.BossSeen(kind);
+                bool beaten = GameSettings.BossDefeated(kind);
+                // Sin encontrarlo aún: silueta y "???".
+                img.color = !seen ? new Color(0.03f, 0f, 0.1f, 0.9f) : beaten ? Color.white : new Color(0.8f, 0.75f, 0.95f);
+                if (seen) name.SetKey(BossNames[kind]); else name.text = "???";
+                hp.gameObject.SetActive(seen);
+                attack.gameObject.SetActive(seen);
+                status.text = Loc.Get(!seen ? "boss_locked" : beaten ? "boss_defeated" : "boss_new");
+                status.color = !seen ? Dim : beaten ? Cyan : Amber;
+                fight.gameObject.SetActive(seen);
+            });
+        }
+
+        MakeButton(panel, "back", new Vector2(0.5f, 0f), new Vector2(0, 52), new Vector2(300, 68), false, () =>
+        {
+            Sfx.Back();
+            ShowMenu();
+        });
+    }
+
+    private string PracticeLabel() =>
+        Loc.Format("hint_practice", Loc.Get(BossNames[Mathf.Clamp(LogicScript.PracticeBoss, 0, 2)]));
+
+    private void OpenBossGallery()
+    {
+        HideAll();
+        foreach (var refresh in _galleryRefreshers) refresh();
+        Show(_bossGallery);
+    }
+
+    private void OpenPilot()
+    {
+        HideAll();
+        RefreshPilot();
+        Show(_pilot);
+    }
+
+    private void RefreshPilot()
+    {
+        foreach (var refresh in _pilotRefreshers) refresh();
+    }
 
     // ================================================================== opciones
 
@@ -570,6 +966,11 @@ public class GameUI : MonoBehaviour
     {
         // Al girar el teléfono (landscape izquierda/derecha) el notch cambia de lado.
         if (Screen.safeArea != _appliedSafeArea) ApplySafeArea();
+        if (_bossWarningTime > 0f)
+        {
+            _bossWarningTime -= Time.unscaledDeltaTime;
+            if (_bossWarningTime <= 0f) _bossWarning.gameObject.SetActive(false);
+        }
         if (_toastTime > 0f)
         {
             _toastTime -= Time.unscaledDeltaTime;
@@ -649,18 +1050,19 @@ public class GameUI : MonoBehaviour
         var button = MakeTextButton(panel, "", new Vector2(0.5f, 1f), new Vector2(205, y), new Vector2(280, 56), () =>
         {
             Sfx.Click();
-            NoAdsStore.Buy();
+            BuyNoAds();
         });
         var text = button.GetComponentInChildren<PixelText>();
         _optionRefreshers.Add(() =>
         {
             bool owned = NoAdsStore.AdsRemoved;
             // Sin tienda (navegador) y sin compra: la fila no se muestra.
-            bool visible = owned || NoAdsStore.Available;
+            bool visible = owned || NoAdsStore.Supported;
             button.gameObject.SetActive(visible);
             label.gameObject.SetActive(visible);
             button.interactable = !owned;
-            text.text = owned ? Loc.Get("no_ads_owned") : NoAdsStore.PriceText;
+            text.text = owned ? Loc.Get("no_ads_owned")
+                : NoAdsStore.Available ? NoAdsStore.PriceText : Loc.Get("buy");
             text.color = owned ? Cyan : White;
             button.GetComponent<Image>().sprite = owned ? _buttonAlt : _button;
         });
