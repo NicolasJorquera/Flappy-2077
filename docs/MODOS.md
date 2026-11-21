@@ -14,7 +14,7 @@ El auto del menú queda a la derecha del título (se ajusta en pantallas 4:3).
 |---|---|---|---|---|
 | Clásico | El original: 1 punto por edificio. | `score.best` (el de siempre) | "Best score" `CgkIm7bXxasGEAIQAQ` (publicado) | Sí |
 | Arcade | Chips, power-ups, combo y jefes. | `score.best.arcade` | "Arcade" `CgkIm7bXxasGEAIQAw` (**borrador**) | Sí |
-| Diario | Reglas de Arcade con la **misma ciudad para todos** ese día (semilla = fecha UTC aaaammdd). | Récord del día | "Daily challenge" `CgkIm7bXxasGEAIQBA` (**borrador**) | No (justo para todos) |
+| Diario | Reglas de Arcade con la **misma ciudad para todos** ese día (semilla = fecha **local** del teléfono aaaammdd; cambia a la medianoche de cada jugador). | Récord del día | "Daily challenge" `CgkIm7bXxasGEAIQBA` (**borrador**) | No (justo para todos) |
 
 Los tableros en borrador solo los ven los testers hasta que se publiquen en Play Console
 (Play Games Services → Publicación). Ojo: una vez publicados no se pueden borrar.

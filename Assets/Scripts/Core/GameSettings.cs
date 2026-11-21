@@ -115,7 +115,7 @@ public static class GameSettings
 
     /// <summary>
     /// Récord por modo. El clásico usa la clave original (conserva récords de versiones
-    /// anteriores); el diario guarda el récord del día (se reinicia cada día UTC).
+    /// anteriores); el diario guarda el récord del día (se reinicia a la medianoche local).
     /// </summary>
     public static int BestFor(GameMode mode)
     {

@@ -24,9 +24,20 @@ public static class GameModes
         : m == GameMode.Bosses ? new[] { 0, 25, 75, 150, 300 }
         : new[] { 0, 40, 100, 200, 400 };
 
-    /// <summary>Semilla del desafío diario: fecha UTC (aaaammdd), igual para todos.</summary>
-    public static int DailySeed => int.Parse(DateTime.UtcNow.ToString("yyyyMMdd"));
-    public static string DailyLabel => DateTime.UtcNow.ToString("dd/MM");
+    /// <summary>
+    /// Semilla del desafío diario: fecha local del teléfono (aaaammdd). Cambia a la medianoche de
+    /// cada jugador; quienes estén en el mismo día juegan la misma ciudad. Se arma con números (no
+    /// con ToString) para que no dependa del calendario del sistema (p. ej. budista en Tailandia).
+    /// </summary>
+    public static int DailySeed
+    {
+        get { var d = DateTime.Now; return d.Year * 10000 + d.Month * 100 + d.Day; }
+    }
+
+    public static string DailyLabel
+    {
+        get { var d = DateTime.Now; return d.Day.ToString("00") + "/" + d.Month.ToString("00"); }
+    }
 }
 
 /// <summary>
